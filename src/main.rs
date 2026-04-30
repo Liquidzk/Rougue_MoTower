@@ -2,6 +2,7 @@ mod game;
 
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
+use bevy::window::WindowResolution;
 use game::{card_def, CardId, Game, Mode, MonsterRank, Tile, HAND_SIZE, MAP_HEIGHT, MAP_WIDTH};
 
 const TILE_SIZE: f32 = 48.0;
@@ -29,7 +30,7 @@ fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Rougue MoTower - Bevy Demo".to_string(),
-                resolution: (1280.0, 720.0).into(),
+                resolution: WindowResolution::new(1280, 720),
                 ..default()
             }),
             ..default()
@@ -40,7 +41,7 @@ fn main() {
 }
 
 fn setup_camera(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d);
 }
 
 fn handle_keyboard(keys: Res<ButtonInput<KeyCode>>, mut state: ResMut<GameState>) {
@@ -126,7 +127,7 @@ fn render_scene(
     }
 
     for entity in &rendered {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
 
     match state.game.mode {
@@ -147,7 +148,7 @@ fn render_explore(commands: &mut Commands, game: &Game) {
         Vec3::new(-470.0, 320.0, 5.0),
         34.0,
         Color::srgb(0.92, 0.88, 0.72),
-        Anchor::CenterLeft,
+        Anchor::CENTER_LEFT,
     );
 
     for y in 0..MAP_HEIGHT {
@@ -165,7 +166,7 @@ fn render_explore(commands: &mut Commands, game: &Game) {
                     center + Vec3::new(0.0, -1.0, 3.0),
                     24.0,
                     Color::srgb(0.96, 0.95, 0.88),
-                    Anchor::Center,
+                    Anchor::CENTER,
                 );
             }
         }
@@ -185,7 +186,7 @@ fn render_explore(commands: &mut Commands, game: &Game) {
         player_center + Vec3::new(0.0, -1.0, 4.0),
         28.0,
         Color::srgb(1.0, 1.0, 1.0),
-        Anchor::Center,
+        Anchor::CENTER,
     );
 
     let stats = format!(
@@ -211,7 +212,7 @@ fn render_explore(commands: &mut Commands, game: &Game) {
         Vec3::new(190.0, 270.0, 5.0),
         24.0,
         Color::srgb(0.91, 0.93, 0.92),
-        Anchor::TopLeft,
+        Anchor::TOP_LEFT,
     );
     spawn_label(
         commands,
@@ -219,7 +220,7 @@ fn render_explore(commands: &mut Commands, game: &Game) {
         Vec3::new(190.0, -20.0, 5.0),
         20.0,
         Color::srgb(0.72, 0.78, 0.82),
-        Anchor::TopLeft,
+        Anchor::TOP_LEFT,
     );
     spawn_label(
         commands,
@@ -227,7 +228,7 @@ fn render_explore(commands: &mut Commands, game: &Game) {
         Vec3::new(-470.0, -290.0, 5.0),
         22.0,
         Color::srgb(0.95, 0.88, 0.62),
-        Anchor::CenterLeft,
+        Anchor::CENTER_LEFT,
     );
 }
 
@@ -243,7 +244,7 @@ fn render_combat(commands: &mut Commands, game: &Game) {
         Vec3::new(-565.0, 315.0, 5.0),
         34.0,
         Color::srgb(0.92, 0.88, 0.72),
-        Anchor::CenterLeft,
+        Anchor::CENTER_LEFT,
     );
 
     spawn_panel(
@@ -269,7 +270,7 @@ fn render_combat(commands: &mut Commands, game: &Game) {
         Vec3::new(-485.0, 245.0, 5.0),
         22.0,
         Color::srgb(0.9, 0.94, 0.96),
-        Anchor::TopLeft,
+        Anchor::TOP_LEFT,
     );
 
     let enemy_color = match combat.monster_rank {
@@ -298,7 +299,7 @@ fn render_combat(commands: &mut Commands, game: &Game) {
         Vec3::new(230.0, 205.0, 5.0),
         24.0,
         Color::srgb(1.0, 0.97, 0.9),
-        Anchor::Center,
+        Anchor::CENTER,
     );
 
     spawn_label(
@@ -307,7 +308,7 @@ fn render_combat(commands: &mut Commands, game: &Game) {
         Vec3::new(-565.0, -40.0, 5.0),
         21.0,
         Color::srgb(0.72, 0.78, 0.82),
-        Anchor::CenterLeft,
+        Anchor::CENTER_LEFT,
     );
 
     for (index, card) in combat.hand.iter().take(HAND_SIZE).enumerate() {
@@ -323,7 +324,7 @@ fn render_combat(commands: &mut Commands, game: &Game) {
         Vec3::new(-565.0, 35.0, 5.0),
         18.0,
         Color::srgb(0.82, 0.85, 0.86),
-        Anchor::TopLeft,
+        Anchor::TOP_LEFT,
     );
 }
 
@@ -339,7 +340,7 @@ fn render_reward(commands: &mut Commands, game: &Game) {
         Vec3::new(-350.0, 260.0, 5.0),
         34.0,
         Color::srgb(0.92, 0.88, 0.72),
-        Anchor::CenterLeft,
+        Anchor::CENTER_LEFT,
     );
 
     let mut summary = format!("Gained {} gold.", reward.gold);
@@ -354,7 +355,7 @@ fn render_reward(commands: &mut Commands, game: &Game) {
         Vec3::new(-350.0, 210.0, 5.0),
         24.0,
         Color::srgb(0.9, 0.94, 0.96),
-        Anchor::CenterLeft,
+        Anchor::CENTER_LEFT,
     );
 
     for (index, card) in reward.offers.iter().enumerate() {
@@ -368,7 +369,7 @@ fn render_reward(commands: &mut Commands, game: &Game) {
         Vec3::new(-350.0, -170.0, 5.0),
         22.0,
         Color::srgb(0.72, 0.78, 0.82),
-        Anchor::CenterLeft,
+        Anchor::CENTER_LEFT,
     );
 }
 
@@ -379,7 +380,7 @@ fn render_victory(commands: &mut Commands, game: &Game) {
         Vec3::new(-270.0, 140.0, 5.0),
         44.0,
         Color::srgb(0.92, 0.88, 0.72),
-        Anchor::CenterLeft,
+        Anchor::CENTER_LEFT,
     );
     spawn_label(
         commands,
@@ -393,7 +394,7 @@ fn render_victory(commands: &mut Commands, game: &Game) {
         Vec3::new(-270.0, 60.0, 5.0),
         26.0,
         Color::srgb(0.9, 0.94, 0.96),
-        Anchor::TopLeft,
+        Anchor::TOP_LEFT,
     );
 }
 
@@ -404,7 +405,7 @@ fn render_game_over(commands: &mut Commands, game: &Game) {
         Vec3::new(-180.0, 120.0, 5.0),
         48.0,
         Color::srgb(0.94, 0.42, 0.34),
-        Anchor::CenterLeft,
+        Anchor::CENTER_LEFT,
     );
     spawn_label(
         commands,
@@ -415,7 +416,7 @@ fn render_game_over(commands: &mut Commands, game: &Game) {
         Vec3::new(-180.0, 45.0, 5.0),
         26.0,
         Color::srgb(0.9, 0.94, 0.96),
-        Anchor::TopLeft,
+        Anchor::TOP_LEFT,
     );
 }
 
@@ -449,7 +450,7 @@ fn spawn_card(commands: &mut Commands, center: Vec3, index: usize, card: CardId)
         center + Vec3::new(-CARD_W * 0.44, CARD_H * 0.31, 5.0),
         17.0,
         Color::srgb(0.95, 0.95, 0.9),
-        Anchor::TopLeft,
+        Anchor::TOP_LEFT,
     );
 }
 
@@ -493,15 +494,8 @@ fn spawn_panel(commands: &mut Commands, center: Vec3, size: Vec2) {
 
 fn spawn_rect(commands: &mut Commands, center: Vec3, size: Vec2, color: Color, z: f32) {
     commands.spawn((
-        SpriteBundle {
-            sprite: Sprite {
-                color,
-                custom_size: Some(size),
-                ..default()
-            },
-            transform: Transform::from_translation(center + Vec3::new(0.0, 0.0, z)),
-            ..default()
-        },
+        Sprite::from_color(color, size),
+        Transform::from_translation(center + Vec3::new(0.0, 0.0, z)),
         SceneEntity,
     ));
 }
@@ -515,19 +509,25 @@ fn spawn_label(
     anchor: Anchor,
 ) {
     commands.spawn((
-        Text2dBundle {
-            text: Text::from_section(
-                value,
-                TextStyle {
-                    font_size,
-                    color,
-                    ..default()
-                },
-            ),
-            text_anchor: anchor,
-            transform: Transform::from_translation(position),
-            ..default()
-        },
+        Text2d::new(value.to_string()),
+        TextFont::from_font_size(font_size),
+        TextColor(color),
+        TextLayout::new_with_justify(justify_for_anchor(anchor)),
+        anchor,
+        Transform::from_translation(position),
         SceneEntity,
     ));
+}
+
+fn justify_for_anchor(anchor: Anchor) -> Justify {
+    if anchor == Anchor::CENTER || anchor == Anchor::TOP_CENTER || anchor == Anchor::BOTTOM_CENTER {
+        Justify::Center
+    } else if anchor == Anchor::CENTER_RIGHT
+        || anchor == Anchor::TOP_RIGHT
+        || anchor == Anchor::BOTTOM_RIGHT
+    {
+        Justify::Right
+    } else {
+        Justify::Left
+    }
 }
