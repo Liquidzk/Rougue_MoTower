@@ -63,6 +63,8 @@ pub enum Tile {
     BlueKey,
     SmallPotion,
     Chest,
+    Shop,
+    Sage,
     Monster(usize),
 }
 
@@ -140,6 +142,13 @@ pub enum CardId {
 pub enum BossBonus {
     MiniBossMaxHp,
     BossAttackBonus,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SageBoon {
+    Attack(i32),
+    Defense(i32),
+    Heal(i32),
 }
 
 pub fn card_cost(id: CardId) -> i32 {
@@ -465,6 +474,16 @@ impl Game {
                 self.message = localization::message_chest(language);
                 true
             }
+            Tile::Shop => {
+                self.player.pos = target;
+                self.visit_shop(language);
+                true
+            }
+            Tile::Sage => {
+                self.player.pos = target;
+                self.visit_sage(language);
+                true
+            }
             Tile::Monster(index) => {
                 self.start_combat(index, target, language);
                 true
@@ -479,7 +498,9 @@ impl Game {
             | Tile::YellowKey
             | Tile::BlueKey
             | Tile::SmallPotion
-            | Tile::Chest => true,
+            | Tile::Chest
+            | Tile::Shop
+            | Tile::Sage => true,
             Tile::YellowDoor => self.player.yellow_keys > 0,
             Tile::BlueDoor => self.player.blue_keys > 0,
             Tile::Wall | Tile::Monster(_) => false,
@@ -533,6 +554,43 @@ impl Game {
 
     fn is_clear_path_tile(&self, tile: Tile) -> bool {
         matches!(tile, Tile::Floor)
+    }
+
+    fn visit_shop(&mut self, language: Language) {
+        let cost = shop_cost(self.floor);
+        if self.player.gold < cost {
+            self.message = localization::message_shop_need_gold(language, cost);
+            return;
+        }
+
+        let card = shop_card(self.floor, self.deck.len());
+        self.player.gold -= cost;
+        self.deck.push(card);
+        self.message = localization::message_shop_card(language, cost, card);
+    }
+
+    fn visit_sage(&mut self, language: Language) {
+        let cost = sage_cost(self.floor);
+        if self.player.experience < cost {
+            self.message = localization::message_sage_need_experience(language, cost);
+            return;
+        }
+
+        self.player.experience -= cost;
+        match sage_boon(self.floor) {
+            SageBoon::Attack(amount) => {
+                self.player.attack += amount;
+                self.message = localization::message_sage_attack(language, cost, amount);
+            }
+            SageBoon::Defense(amount) => {
+                self.player.defense += amount;
+                self.message = localization::message_sage_defense(language, cost, amount);
+            }
+            SageBoon::Heal(amount) => {
+                self.player.hp = (self.player.hp + amount).min(self.player.max_hp);
+                self.message = localization::message_sage_heal(language, cost, amount);
+            }
+        }
     }
 
     pub fn play_card(&mut self, hand_index: usize, language: Language) {
@@ -732,6 +790,8 @@ impl Game {
                     'k' => Tile::BlueKey,
                     'p' => Tile::SmallPotion,
                     'c' => Tile::Chest,
+                    's' => Tile::Shop,
+                    'o' => Tile::Sage,
                     'a' => Tile::Monster(monster_index_for_floor(floor, 0)),
                     'b' => Tile::Monster(monster_index_for_floor(floor, 1)),
                     'C' => Tile::Monster(monster_index_for_floor(floor, 2)),
@@ -782,7 +842,7 @@ fn floor_layout(floor: i32) -> [&'static str; MAP_HEIGHT] {
         ],
         4 => [
             "############",
-            "#P..a..c...#",
+            "#P..a..s...#",
             "#.##.####..#",
             "#..b...y#..#",
             "####Y##.#C##",
@@ -797,7 +857,7 @@ fn floor_layout(floor: i32) -> [&'static str; MAP_HEIGHT] {
             "#.##Y#####.#",
             "#..b..p...C#",
             "####.#######",
-            "#k..c......#",
+            "#k..o......#",
             "#.#######..#",
             "#..d..E..S.#",
             "############",
@@ -863,7 +923,7 @@ fn floor_layout(floor: i32) -> [&'static str; MAP_HEIGHT] {
             "#.###.####.#",
             "#..b..p.#C.#",
             "##.##Y#.#..#",
-            "#k..c...#..#",
+            "#k..s...#..#",
             "#.####U##..#",
             "#..d..E..S.#",
             "############",
@@ -874,7 +934,7 @@ fn floor_layout(floor: i32) -> [&'static str; MAP_HEIGHT] {
             "#.#######..#",
             "#..b..y.#..#",
             "####Y##.#..#",
-            "#k..c...#..#",
+            "#k..o...#..#",
             "#.####U##..#",
             "#..d..E..S.#",
             "############",
@@ -929,7 +989,7 @@ fn floor_layout(floor: i32) -> [&'static str; MAP_HEIGHT] {
             "#.##.#####.#",
             "#..b..y#C..#",
             "##.##Y##...#",
-            "#k..c...#..#",
+            "#k..s...#..#",
             "#.####U##..#",
             "#..d..E..S.#",
             "############",
@@ -940,7 +1000,7 @@ fn floor_layout(floor: i32) -> [&'static str; MAP_HEIGHT] {
             "#.#######..#",
             "#..b..y.#..#",
             "####Y##.#..#",
-            "#k..p...#..#",
+            "#k..o...#..#",
             "#.####U##..#",
             "#..d..E..S.#",
             "############",
@@ -983,6 +1043,39 @@ fn floor_layout(floor: i32) -> [&'static str; MAP_HEIGHT] {
 
 fn monster_index_for_floor(floor: i32, slot: usize) -> usize {
     ((floor - 1).max(0) as usize * MONSTER_SLOTS_PER_FLOOR) + slot
+}
+
+fn shop_cost(floor: i32) -> i32 {
+    match floor {
+        1..=5 => 18,
+        6..=12 => 42,
+        _ => 78,
+    }
+}
+
+fn shop_card(floor: i32, deck_len: usize) -> CardId {
+    let offers = match floor {
+        1..=5 => [CardId::ShieldBash, CardId::Spark, CardId::HeavySlash],
+        6..=12 => [CardId::HeavySlash, CardId::Spark, CardId::FirstAid],
+        _ => [CardId::HeavySlash, CardId::ShieldBash, CardId::FirstAid],
+    };
+    offers[deck_len % offers.len()]
+}
+
+fn sage_cost(floor: i32) -> i32 {
+    match floor {
+        1..=5 => 16,
+        6..=12 => 42,
+        _ => 78,
+    }
+}
+
+fn sage_boon(floor: i32) -> SageBoon {
+    match floor {
+        1..=5 => SageBoon::Attack(1),
+        6..=12 => SageBoon::Defense(1),
+        _ => SageBoon::Heal(32),
+    }
 }
 
 fn neighbors(pos: Pos) -> impl Iterator<Item = Pos> {
@@ -1367,5 +1460,35 @@ mod tests {
         game.try_move(1, 0, Language::English);
 
         assert_eq!(game.mode, Mode::Victory);
+    }
+
+    #[test]
+    fn shop_spends_gold_and_adds_a_card() {
+        let mut game = Game::new_with_language(Language::English);
+        game.floor = 4;
+        game.load_floor(4);
+        game.player.gold = shop_cost(4);
+        let deck_len = game.deck.len();
+
+        let entered = game.enter_tile(Pos { x: 7, y: 1 }, Language::English);
+
+        assert!(entered);
+        assert_eq!(game.player.gold, 0);
+        assert_eq!(game.deck.len(), deck_len + 1);
+    }
+
+    #[test]
+    fn sage_spends_experience_and_grants_boon() {
+        let mut game = Game::new_with_language(Language::English);
+        game.floor = 5;
+        game.load_floor(5);
+        game.player.experience = sage_cost(5);
+        let attack = game.player.attack;
+
+        let entered = game.enter_tile(Pos { x: 4, y: 5 }, Language::English);
+
+        assert!(entered);
+        assert_eq!(game.player.experience, 0);
+        assert_eq!(game.player.attack, attack + 1);
     }
 }

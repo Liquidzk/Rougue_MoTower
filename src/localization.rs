@@ -375,6 +375,51 @@ pub fn message_chest(language: Language) -> String {
     }
 }
 
+pub fn message_shop_need_gold(language: Language, cost: i32) -> String {
+    match language {
+        Language::Chinese => format!("商店需要 {cost} 金币。"),
+        Language::English => format!("Shop needs {cost} gold."),
+    }
+}
+
+pub fn message_shop_card(language: Language, cost: i32, card: CardId) -> String {
+    match language {
+        Language::Chinese => format!("商店消耗 {cost} 金币，获得{}。", card_name(language, card)),
+        Language::English => format!(
+            "Shop spent {cost} gold and granted {}.",
+            card_name(language, card)
+        ),
+    }
+}
+
+pub fn message_sage_need_experience(language: Language, cost: i32) -> String {
+    match language {
+        Language::Chinese => format!("老头需要 {cost} 经验。"),
+        Language::English => format!("Sage needs {cost} EXP."),
+    }
+}
+
+pub fn message_sage_attack(language: Language, cost: i32, amount: i32) -> String {
+    match language {
+        Language::Chinese => format!("老头消耗 {cost} 经验，攻击 +{amount}。"),
+        Language::English => format!("Sage spent {cost} EXP. Attack +{amount}."),
+    }
+}
+
+pub fn message_sage_defense(language: Language, cost: i32, amount: i32) -> String {
+    match language {
+        Language::Chinese => format!("老头消耗 {cost} 经验，防御 +{amount}。"),
+        Language::English => format!("Sage spent {cost} EXP. Defense +{amount}."),
+    }
+}
+
+pub fn message_sage_heal(language: Language, cost: i32, amount: i32) -> String {
+    match language {
+        Language::Chinese => format!("老头消耗 {cost} 经验，回复 {amount} 生命。"),
+        Language::English => format!("Sage spent {cost} EXP. Healed {amount} HP."),
+    }
+}
+
 pub fn message_battle(language: Language, monster: MonsterId) -> String {
     match language {
         Language::Chinese => format!("战斗：{}", monster_name(language, monster)),

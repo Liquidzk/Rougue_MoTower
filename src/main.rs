@@ -1418,6 +1418,8 @@ fn tile_visual(game: &Game, tile: Tile) -> (Color, &'static str) {
         Tile::BlueKey => (Color::srgb(0.12, 0.34, 0.72), "K"),
         Tile::SmallPotion => (Color::srgb(0.62, 0.12, 0.20), "+"),
         Tile::Chest => (Color::srgb(0.46, 0.27, 0.12), "C"),
+        Tile::Shop => (Color::srgb(0.18, 0.44, 0.48), "$"),
+        Tile::Sage => (Color::srgb(0.34, 0.32, 0.58), "?"),
         Tile::Monster(index) => {
             let monster = &game.monsters[index];
             let color = match monster.rank {

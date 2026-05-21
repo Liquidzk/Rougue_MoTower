@@ -35,6 +35,8 @@ The stage 1 demo currently has 20 floors split into four difficulty bands. Floor
 
 Player combat stats currently include HP, Attack, Defense, Gold, EXP, keys, and deck size. Attack scales damage cards; Defense scales block/healing cards and reduces incoming enemy damage.
 
+Shops appear on floors 4, 11, and 17 and spend gold for card rewards. Sages appear on floors 5, 12, and 18 and spend EXP for Attack, Defense, or healing.
+
 The game auto-saves to `save/last_save.json` after in-game actions and when returning to the start menu.
 
 See [docs/TODO.md](docs/TODO.md) for the current node plan.
