@@ -31,7 +31,7 @@ ROUGUE_MOTOWER_FONT=/path/to/chinese-font.ttf cargo run
 - `R`: restart after win/loss or at any time.
 - `Esc`: save the current run and return to the start menu.
 
-The first demo floor includes doors, keys, potion, chest, several monsters, a mini boss, a floor boss, card rewards, and a clear condition at the stairs.
+The stage 1 demo currently has 20 floors split into four difficulty bands. Floors include doors, keys, potions, chests, several monsters, mini bosses, floor bosses, card rewards, and a clear condition at the final stairs.
 
 The game auto-saves to `save/last_save.json` after in-game actions and when returning to the start menu.
 

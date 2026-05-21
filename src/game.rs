@@ -8,6 +8,8 @@ pub const MAP_WIDTH: usize = 12;
 pub const MAP_HEIGHT: usize = 9;
 pub const STARTING_ENERGY: i32 = 3;
 pub const HAND_SIZE: usize = 5;
+pub const FINAL_FLOOR: i32 = 20;
+const MONSTER_SLOTS_PER_FLOOR: usize = 5;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Mode {
@@ -46,6 +48,7 @@ pub enum Tile {
     Wall,
     Stairs,
     YellowDoor,
+    BlueDoor,
     YellowKey,
     BlueKey,
     SmallPotion,
@@ -78,6 +81,21 @@ pub enum MonsterId {
     BoneGuard,
     IronCaptain,
     FloorGuardian,
+    RedSlime,
+    VampireBat,
+    StoneGuard,
+    RuneCaptain,
+    TowerWarden,
+    DarkSlime,
+    Warlock,
+    IronGolem,
+    AbyssKnight,
+    DemonLord,
+    FlameSlime,
+    Dragonling,
+    GoldenGuard,
+    ChaosKnight,
+    AncientDragon,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -125,6 +143,21 @@ pub fn monster_marker(kind: MonsterId) -> &'static str {
         MonsterId::BoneGuard => "G",
         MonsterId::IronCaptain => "M",
         MonsterId::FloorGuardian => "F",
+        MonsterId::RedSlime => "R",
+        MonsterId::VampireBat => "V",
+        MonsterId::StoneGuard => "T",
+        MonsterId::RuneCaptain => "C",
+        MonsterId::TowerWarden => "W",
+        MonsterId::DarkSlime => "D",
+        MonsterId::Warlock => "L",
+        MonsterId::IronGolem => "O",
+        MonsterId::AbyssKnight => "A",
+        MonsterId::DemonLord => "N",
+        MonsterId::FlameSlime => "F",
+        MonsterId::Dragonling => "Q",
+        MonsterId::GoldenGuard => "G",
+        MonsterId::ChaosKnight => "H",
+        MonsterId::AncientDragon => "X",
     }
 }
 
@@ -277,7 +310,7 @@ impl Game {
             message: localization::initial_message(language),
         };
 
-        game.load_demo_floor();
+        game.load_floor(1);
         game
     }
 
@@ -346,9 +379,13 @@ impl Game {
                 false
             }
             Tile::Stairs => {
-                self.player.pos = target;
-                self.mode = Mode::Victory;
-                self.message = localization::message_floor_clear(language);
+                if self.floor >= FINAL_FLOOR {
+                    self.player.pos = target;
+                    self.mode = Mode::Victory;
+                    self.message = localization::message_stage_clear(language);
+                } else {
+                    self.advance_floor(language);
+                }
                 true
             }
             Tile::YellowDoor => {
@@ -360,6 +397,18 @@ impl Game {
                     true
                 } else {
                     self.message = localization::message_need_yellow_key(language);
+                    false
+                }
+            }
+            Tile::BlueDoor => {
+                if self.player.blue_keys > 0 {
+                    self.player.blue_keys -= 1;
+                    self.set_tile(target, Tile::Floor);
+                    self.player.pos = target;
+                    self.message = localization::message_blue_door_opened(language);
+                    true
+                } else {
+                    self.message = localization::message_need_blue_key(language);
                     false
                 }
             }
@@ -408,6 +457,7 @@ impl Game {
             | Tile::SmallPotion
             | Tile::Chest => true,
             Tile::YellowDoor => self.player.yellow_keys > 0,
+            Tile::BlueDoor => self.player.blue_keys > 0,
             Tile::Wall | Tile::Monster(_) => false,
         }
     }
@@ -625,20 +675,20 @@ impl Game {
         self.message = localization::message_defeated_choose_reward(language, monster_kind);
     }
 
-    fn load_demo_floor(&mut self) {
-        let layout = [
-            "############",
-            "#P..a..y...#",
-            "#.#.###.##.#",
-            "#.#k..b.#..#",
-            "#.#.###..C##",
-            "#...p...#..#",
-            "###Y#####..#",
-            "#c..d..E..S#",
-            "############",
-        ];
+    fn advance_floor(&mut self, language: Language) {
+        self.floor += 1;
+        self.mode = Mode::Explore;
+        self.combat = None;
+        self.reward = None;
+        self.pending_monster_pos = None;
+        self.load_floor(self.floor);
+        self.message = localization::message_enter_floor(language, self.floor);
+    }
 
-        for (y, row) in layout.iter().enumerate() {
+    fn load_floor(&mut self, floor: i32) {
+        self.tiles.fill(Tile::Floor);
+
+        for (y, row) in floor_layout(floor).iter().enumerate() {
             for (x, ch) in row.chars().enumerate() {
                 let tile = match ch {
                     '#' => Tile::Wall,
@@ -648,21 +698,262 @@ impl Game {
                     }
                     'S' => Tile::Stairs,
                     'Y' => Tile::YellowDoor,
+                    'U' => Tile::BlueDoor,
                     'y' => Tile::YellowKey,
                     'k' => Tile::BlueKey,
                     'p' => Tile::SmallPotion,
                     'c' => Tile::Chest,
-                    'a' => Tile::Monster(0),
-                    'b' => Tile::Monster(1),
-                    'C' => Tile::Monster(2),
-                    'd' => Tile::Monster(3),
-                    'E' => Tile::Monster(4),
+                    'a' => Tile::Monster(monster_index_for_floor(floor, 0)),
+                    'b' => Tile::Monster(monster_index_for_floor(floor, 1)),
+                    'C' => Tile::Monster(monster_index_for_floor(floor, 2)),
+                    'd' => Tile::Monster(monster_index_for_floor(floor, 3)),
+                    'E' => Tile::Monster(monster_index_for_floor(floor, 4)),
                     _ => Tile::Floor,
                 };
                 self.set_tile(Pos { x, y }, tile);
             }
         }
     }
+}
+
+fn floor_layout(floor: i32) -> [&'static str; MAP_HEIGHT] {
+    match floor {
+        1 => [
+            "############",
+            "#P..a..y...#",
+            "#.#.###.##.#",
+            "#.#k..b.#..#",
+            "#.#.###..C##",
+            "#...p...#..#",
+            "###Y#####..#",
+            "#c..d..E..S#",
+            "############",
+        ],
+        2 => [
+            "############",
+            "#P..a..y...#",
+            "#.##.##.##.#",
+            "#..b..p.#..#",
+            "###Y###.#C##",
+            "#k..c...#..#",
+            "#.####U##..#",
+            "#..d...E..S#",
+            "############",
+        ],
+        3 => [
+            "############",
+            "#P.a...p..S#",
+            "#.###.####.#",
+            "#...b..y...#",
+            "###.###Y####",
+            "#k..C......#",
+            "#.#####.##.#",
+            "#c..d..E...#",
+            "############",
+        ],
+        4 => [
+            "############",
+            "#P..a..c...#",
+            "#.##.####..#",
+            "#..b...y#..#",
+            "####Y##.#C##",
+            "#p.....k#..#",
+            "#.#######..#",
+            "#..d..E...S#",
+            "############",
+        ],
+        5 => [
+            "############",
+            "#P..a..y...#",
+            "#.##Y#####.#",
+            "#..b..p...C#",
+            "####.#######",
+            "#k..c......#",
+            "#.#######..#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        6 => [
+            "############",
+            "#P.a....y..#",
+            "#.####.###.#",
+            "#..b..p#...#",
+            "##.###.#C###",
+            "#k...c.#...#",
+            "#.##Y###.U##",
+            "#..d..E..S.#",
+            "############",
+        ],
+        7 => [
+            "############",
+            "#P..a..p...#",
+            "#.#######..#",
+            "#..b...y#C.#",
+            "####Y##.#..#",
+            "#k..c...#..#",
+            "#.####U##..#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        8 => [
+            "############",
+            "#P.a..y....#",
+            "#.##.#######",
+            "#..b..p...C#",
+            "####.####Y##",
+            "#k..c......#",
+            "#.####U###.#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        9 => [
+            "############",
+            "#P..a...c..#",
+            "#.######.#.#",
+            "#..b..y#.#C#",
+            "##.##Y##.#.#",
+            "#k..p....#.#",
+            "#.#####U##.#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        10 => [
+            "############",
+            "#P.a..y...C#",
+            "#.##Y#######",
+            "#..b..p....#",
+            "####.####..#",
+            "#k..c...#..#",
+            "#.####U##..#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        11 => [
+            "############",
+            "#P..a..y...#",
+            "#.###.####.#",
+            "#..b..p.#C.#",
+            "##.##Y#.#..#",
+            "#k..c...#..#",
+            "#.####U##..#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        12 => [
+            "############",
+            "#P.a...p..C#",
+            "#.#######..#",
+            "#..b..y.#..#",
+            "####Y##.#..#",
+            "#k..c...#..#",
+            "#.####U##..#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        13 => [
+            "############",
+            "#P..a..c...#",
+            "#.##.#####.#",
+            "#..b..y..C.#",
+            "####Y#######",
+            "#k..p......#",
+            "#.####U###.#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        14 => [
+            "############",
+            "#P.a..y....#",
+            "#.####.###.#",
+            "#..b..p#C..#",
+            "##.##Y##...#",
+            "#k..c...#..#",
+            "#.####U##..#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        15 => [
+            "############",
+            "#P..a..y..C#",
+            "#.##Y#######",
+            "#..b..p....#",
+            "####.####..#",
+            "#k..c...#..#",
+            "#.####U##..#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        16 => [
+            "############",
+            "#P.a..y..C.#",
+            "#.#######..#",
+            "#..b..p.#..#",
+            "####Y##.#..#",
+            "#k..c...#..#",
+            "#.####U##..#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        17 => [
+            "############",
+            "#P..a..p...#",
+            "#.##.#####.#",
+            "#..b..y#C..#",
+            "##.##Y##...#",
+            "#k..c...#..#",
+            "#.####U##..#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        18 => [
+            "############",
+            "#P.a...c..C#",
+            "#.#######..#",
+            "#..b..y.#..#",
+            "####Y##.#..#",
+            "#k..p...#..#",
+            "#.####U##..#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        19 => [
+            "############",
+            "#P..a..y...#",
+            "#.######.#.#",
+            "#..b..p#.#C#",
+            "##.##Y##.#.#",
+            "#k..c....#.#",
+            "#.####U###.#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        20 => [
+            "############",
+            "#P.a..y..C.#",
+            "#.##Y#######",
+            "#..b..p....#",
+            "####.####..#",
+            "#k..c...#..#",
+            "#.####U##..#",
+            "#..d..E..S.#",
+            "############",
+        ],
+        _ => [
+            "############",
+            "#P........S#",
+            "#..........#",
+            "#..........#",
+            "#..........#",
+            "#..........#",
+            "#..........#",
+            "#..........#",
+            "############",
+        ],
+    }
+}
+
+fn monster_index_for_floor(floor: i32, slot: usize) -> usize {
+    ((floor - 1).max(0) as usize * MONSTER_SLOTS_PER_FLOOR) + slot
 }
 
 fn neighbors(pos: Pos) -> impl Iterator<Item = Pos> {
@@ -719,53 +1010,92 @@ fn apply_card(card: CardId, player: &mut Player, combat: &mut CombatState, langu
 }
 
 fn demo_monsters() -> Vec<Monster> {
-    vec![
-        Monster {
-            kind: MonsterId::GreenSlime,
-            max_hp: 18,
-            hp: 18,
-            attack: 4,
-            gold: 5,
-            rank: MonsterRank::Normal,
-            defeated: false,
-        },
-        Monster {
-            kind: MonsterId::CaveBat,
-            max_hp: 24,
-            hp: 24,
-            attack: 6,
-            gold: 7,
-            rank: MonsterRank::Normal,
-            defeated: false,
-        },
-        Monster {
-            kind: MonsterId::BoneGuard,
-            max_hp: 34,
-            hp: 34,
-            attack: 8,
-            gold: 10,
-            rank: MonsterRank::Normal,
-            defeated: false,
-        },
-        Monster {
-            kind: MonsterId::IronCaptain,
-            max_hp: 54,
-            hp: 54,
-            attack: 10,
-            gold: 18,
-            rank: MonsterRank::MiniBoss,
-            defeated: false,
-        },
-        Monster {
-            kind: MonsterId::FloorGuardian,
-            max_hp: 82,
-            hp: 82,
-            attack: 13,
-            gold: 30,
-            rank: MonsterRank::Boss,
-            defeated: false,
-        },
-    ]
+    (1..=FINAL_FLOOR)
+        .flat_map(|floor| {
+            (0..MONSTER_SLOTS_PER_FLOOR).map(move |slot| monster_for_floor_slot(floor, slot))
+        })
+        .collect()
+}
+
+fn monster_for_floor_slot(floor: i32, slot: usize) -> Monster {
+    let kind = monster_kind_for_floor_slot(floor, slot);
+    let rank = if slot == 4 {
+        if floor % 5 == 0 || floor >= 11 {
+            MonsterRank::Boss
+        } else {
+            MonsterRank::MiniBoss
+        }
+    } else if slot == 3 {
+        MonsterRank::MiniBoss
+    } else {
+        MonsterRank::Normal
+    };
+
+    let base_hp = [18, 24, 34, 54, 82][slot];
+    let base_attack = [4, 6, 8, 10, 13][slot];
+    let base_gold = [5, 7, 10, 18, 30][slot];
+    let tier = ((floor - 1) / 5).max(0);
+    let floor_step = floor - 1;
+    let rank_hp = match rank {
+        MonsterRank::Normal => 0,
+        MonsterRank::MiniBoss => 14 + tier * 8,
+        MonsterRank::Boss => 34 + tier * 18,
+    };
+    let rank_attack = match rank {
+        MonsterRank::Normal => 0,
+        MonsterRank::MiniBoss => 2 + tier,
+        MonsterRank::Boss => 4 + tier * 2,
+    };
+
+    let max_hp = base_hp + floor_step * 9 + tier * 24 + rank_hp;
+    let attack = base_attack + floor_step * 2 + tier * 3 + rank_attack;
+    let gold = base_gold + floor * 2 + slot as i32 * 2 + tier * 8;
+
+    Monster {
+        kind,
+        max_hp,
+        hp: max_hp,
+        attack,
+        gold,
+        rank,
+        defeated: false,
+    }
+}
+
+fn monster_kind_for_floor_slot(floor: i32, slot: usize) -> MonsterId {
+    let tier = ((floor - 1) / 5).clamp(0, 3) as usize;
+    const KINDS: [[MonsterId; MONSTER_SLOTS_PER_FLOOR]; 4] = [
+        [
+            MonsterId::GreenSlime,
+            MonsterId::CaveBat,
+            MonsterId::BoneGuard,
+            MonsterId::IronCaptain,
+            MonsterId::FloorGuardian,
+        ],
+        [
+            MonsterId::RedSlime,
+            MonsterId::VampireBat,
+            MonsterId::StoneGuard,
+            MonsterId::RuneCaptain,
+            MonsterId::TowerWarden,
+        ],
+        [
+            MonsterId::DarkSlime,
+            MonsterId::Warlock,
+            MonsterId::IronGolem,
+            MonsterId::AbyssKnight,
+            MonsterId::DemonLord,
+        ],
+        [
+            MonsterId::FlameSlime,
+            MonsterId::Dragonling,
+            MonsterId::GoldenGuard,
+            MonsterId::ChaosKnight,
+            MonsterId::AncientDragon,
+        ],
+    ];
+
+    KINDS[tier][slot]
 }
 
 fn starter_deck() -> Vec<CardId> {
@@ -896,5 +1226,62 @@ mod tests {
         assert_eq!(loaded.player.pos, game.player.pos);
         assert_eq!(loaded.deck, game.deck);
         assert_eq!(loaded.tiles, game.tiles);
+    }
+
+    #[test]
+    fn all_stage_one_floor_layouts_are_well_formed() {
+        for floor in 1..=FINAL_FLOOR {
+            let layout = floor_layout(floor);
+            assert_eq!(layout.len(), MAP_HEIGHT);
+
+            let mut starts = 0;
+            let mut stairs = 0;
+            for row in layout {
+                assert_eq!(row.chars().count(), MAP_WIDTH, "floor {floor}: {row}");
+                starts += row.chars().filter(|ch| *ch == 'P').count();
+                stairs += row.chars().filter(|ch| *ch == 'S').count();
+            }
+
+            assert_eq!(starts, 1, "floor {floor} must have one start");
+            assert_eq!(stairs, 1, "floor {floor} must have one stair");
+        }
+    }
+
+    #[test]
+    fn stage_one_has_monster_instances_for_every_floor_slot() {
+        let game = Game::new_with_language(Language::English);
+
+        assert_eq!(
+            game.monsters.len(),
+            FINAL_FLOOR as usize * MONSTER_SLOTS_PER_FLOOR
+        );
+        assert_eq!(
+            game.monsters[monster_index_for_floor(20, 4)].rank,
+            MonsterRank::Boss
+        );
+        assert!(
+            game.monsters[monster_index_for_floor(20, 4)].max_hp
+                > game.monsters[monster_index_for_floor(1, 4)].max_hp
+        );
+    }
+
+    #[test]
+    fn stairs_advance_until_final_floor_then_win() {
+        let mut game = Game::new_with_language(Language::English);
+        game.player.pos = Pos { x: 9, y: 7 };
+
+        game.try_move(1, 0, Language::English);
+
+        assert_eq!(game.floor, 2);
+        assert_eq!(game.mode, Mode::Explore);
+        assert_eq!(game.player.pos, Pos { x: 1, y: 1 });
+
+        game.floor = FINAL_FLOOR;
+        game.load_floor(FINAL_FLOOR);
+        game.player.pos = Pos { x: 8, y: 7 };
+
+        game.try_move(1, 0, Language::English);
+
+        assert_eq!(game.mode, Mode::Victory);
     }
 }

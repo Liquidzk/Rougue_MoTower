@@ -224,6 +224,21 @@ pub fn monster_name(language: Language, monster: MonsterId) -> &'static str {
             MonsterId::BoneGuard => "骸骨守卫",
             MonsterId::IronCaptain => "铁甲队长",
             MonsterId::FloorGuardian => "楼层守护者",
+            MonsterId::RedSlime => "红史莱姆",
+            MonsterId::VampireBat => "吸血蝙蝠",
+            MonsterId::StoneGuard => "石像守卫",
+            MonsterId::RuneCaptain => "符文队长",
+            MonsterId::TowerWarden => "高塔典狱长",
+            MonsterId::DarkSlime => "暗影史莱姆",
+            MonsterId::Warlock => "咒术师",
+            MonsterId::IronGolem => "钢铁魔像",
+            MonsterId::AbyssKnight => "深渊骑士",
+            MonsterId::DemonLord => "恶魔领主",
+            MonsterId::FlameSlime => "烈焰史莱姆",
+            MonsterId::Dragonling => "幼龙",
+            MonsterId::GoldenGuard => "黄金守卫",
+            MonsterId::ChaosKnight => "混沌骑士",
+            MonsterId::AncientDragon => "远古巨龙",
         },
         Language::English => match monster {
             MonsterId::GreenSlime => "Green Slime",
@@ -231,6 +246,21 @@ pub fn monster_name(language: Language, monster: MonsterId) -> &'static str {
             MonsterId::BoneGuard => "Bone Guard",
             MonsterId::IronCaptain => "Iron Captain",
             MonsterId::FloorGuardian => "Floor Guardian",
+            MonsterId::RedSlime => "Red Slime",
+            MonsterId::VampireBat => "Vampire Bat",
+            MonsterId::StoneGuard => "Stone Guard",
+            MonsterId::RuneCaptain => "Rune Captain",
+            MonsterId::TowerWarden => "Tower Warden",
+            MonsterId::DarkSlime => "Dark Slime",
+            MonsterId::Warlock => "Warlock",
+            MonsterId::IronGolem => "Iron Golem",
+            MonsterId::AbyssKnight => "Abyss Knight",
+            MonsterId::DemonLord => "Demon Lord",
+            MonsterId::FlameSlime => "Flame Slime",
+            MonsterId::Dragonling => "Dragonling",
+            MonsterId::GoldenGuard => "Golden Guard",
+            MonsterId::ChaosKnight => "Chaos Knight",
+            MonsterId::AncientDragon => "Ancient Dragon",
         },
     }
 }
@@ -269,10 +299,17 @@ pub fn message_solid_wall(language: Language) -> String {
     }
 }
 
-pub fn message_floor_clear(language: Language) -> String {
+pub fn message_stage_clear(language: Language) -> String {
     match language {
-        Language::Chinese => "第一层已清理。下一层还是 TODO 节点。".to_string(),
-        Language::English => "Floor 1 cleared. The next floor is a TODO node.".to_string(),
+        Language::Chinese => "阶段 1 Demo 已清理。".to_string(),
+        Language::English => "Stage 1 demo cleared.".to_string(),
+    }
+}
+
+pub fn message_enter_floor(language: Language, floor: i32) -> String {
+    match language {
+        Language::Chinese => format!("进入第 {floor} 层。"),
+        Language::English => format!("Entered floor {floor}."),
     }
 }
 
@@ -287,6 +324,20 @@ pub fn message_need_yellow_key(language: Language) -> String {
     match language {
         Language::Chinese => "需要一把黄钥匙。".to_string(),
         Language::English => "Need a yellow key.".to_string(),
+    }
+}
+
+pub fn message_blue_door_opened(language: Language) -> String {
+    match language {
+        Language::Chinese => "蓝色门已打开。".to_string(),
+        Language::English => "Blue door opened.".to_string(),
+    }
+}
+
+pub fn message_need_blue_key(language: Language) -> String {
+    match language {
+        Language::Chinese => "需要一把蓝钥匙。".to_string(),
+        Language::English => "Need a blue key.".to_string(),
     }
 }
 

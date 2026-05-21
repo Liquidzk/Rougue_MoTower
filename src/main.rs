@@ -1394,6 +1394,7 @@ fn tile_visual(game: &Game, tile: Tile) -> (Color, &'static str) {
         Tile::Wall => (Color::srgb(0.03, 0.04, 0.05), "#"),
         Tile::Stairs => (Color::srgb(0.16, 0.40, 0.26), ">"),
         Tile::YellowDoor => (Color::srgb(0.76, 0.54, 0.16), "D"),
+        Tile::BlueDoor => (Color::srgb(0.10, 0.28, 0.58), "D"),
         Tile::YellowKey => (Color::srgb(0.80, 0.65, 0.20), "K"),
         Tile::BlueKey => (Color::srgb(0.12, 0.34, 0.72), "K"),
         Tile::SmallPotion => (Color::srgb(0.62, 0.12, 0.20), "+"),
