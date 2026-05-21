@@ -12,6 +12,12 @@ pub const FINAL_FLOOR: i32 = 20;
 const MONSTER_SLOTS_PER_FLOOR: usize = 5;
 const STARTING_ATTACK: i32 = 4;
 const STARTING_DEFENSE: i32 = 2;
+const SLOT_BASE_HP: [i32; MONSTER_SLOTS_PER_FLOOR] = [20, 28, 40, 68, 104];
+const SLOT_BASE_ATTACK: [i32; MONSTER_SLOTS_PER_FLOOR] = [4, 5, 7, 10, 13];
+const SLOT_BASE_GOLD: [i32; MONSTER_SLOTS_PER_FLOOR] = [6, 8, 12, 20, 34];
+const SLOT_BASE_EXPERIENCE: [i32; MONSTER_SLOTS_PER_FLOOR] = [4, 5, 7, 12, 19];
+const TIER_HP_BONUS: [i32; 4] = [0, 34, 74, 124];
+const TIER_ATTACK_BONUS: [i32; 4] = [0, 4, 9, 15];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Mode {
@@ -1248,16 +1254,12 @@ fn monster_for_floor_slot(floor: i32, slot: usize) -> Monster {
         MonsterRank::Normal
     };
 
-    let base_hp = [18, 24, 34, 54, 82][slot];
-    let base_attack = [4, 6, 8, 10, 13][slot];
-    let base_gold = [5, 7, 10, 18, 30][slot];
-    let base_experience = [3, 4, 6, 10, 16][slot];
-    let tier = ((floor - 1) / 5).max(0);
+    let tier = ((floor - 1) / 5).clamp(0, 3);
     let floor_step = floor - 1;
     let rank_hp = match rank {
         MonsterRank::Normal => 0,
-        MonsterRank::MiniBoss => 14 + tier * 8,
-        MonsterRank::Boss => 34 + tier * 18,
+        MonsterRank::MiniBoss => 18 + tier * 12,
+        MonsterRank::Boss => 46 + tier * 28,
     };
     let rank_attack = match rank {
         MonsterRank::Normal => 0,
@@ -1265,10 +1267,11 @@ fn monster_for_floor_slot(floor: i32, slot: usize) -> Monster {
         MonsterRank::Boss => 4 + tier * 2,
     };
 
-    let max_hp = base_hp + floor_step * 9 + tier * 24 + rank_hp;
-    let attack = base_attack + floor_step * 2 + tier * 3 + rank_attack;
-    let gold = base_gold + floor * 2 + slot as i32 * 2 + tier * 8;
-    let experience = base_experience + floor + tier * 4 + slot as i32;
+    let max_hp = SLOT_BASE_HP[slot] + floor_step * 8 + TIER_HP_BONUS[tier as usize] + rank_hp;
+    let attack =
+        SLOT_BASE_ATTACK[slot] + floor_step * 2 + TIER_ATTACK_BONUS[tier as usize] + rank_attack;
+    let gold = SLOT_BASE_GOLD[slot] + floor * 2 + slot as i32 * 3 + tier * 10;
+    let experience = SLOT_BASE_EXPERIENCE[slot] + floor + tier * 5 + slot as i32;
 
     Monster {
         kind,
@@ -1661,6 +1664,36 @@ mod tests {
             game.monsters[monster_index_for_floor(20, 4)].max_hp
                 > game.monsters[monster_index_for_floor(1, 4)].max_hp
         );
+    }
+
+    #[test]
+    fn monster_balance_curve_scales_across_floor_bands() {
+        let floor_5_boss = monster_for_floor_slot(5, 4);
+        let floor_10_boss = monster_for_floor_slot(10, 4);
+        let floor_15_boss = monster_for_floor_slot(15, 4);
+        let floor_20_boss = monster_for_floor_slot(20, 4);
+
+        assert!(floor_10_boss.max_hp > floor_5_boss.max_hp);
+        assert!(floor_15_boss.max_hp > floor_10_boss.max_hp);
+        assert!(floor_20_boss.max_hp > floor_15_boss.max_hp);
+        assert!(floor_20_boss.attack > floor_5_boss.attack);
+        assert!(floor_20_boss.max_hp >= 500);
+        assert!(floor_20_boss.gold > floor_10_boss.gold);
+        assert!(floor_20_boss.experience > floor_10_boss.experience);
+    }
+
+    #[test]
+    fn milestone_monsters_help_fund_shops_and_sages() {
+        let floor_4_mini_boss = monster_for_floor_slot(4, 3);
+        let floor_11_guard = monster_for_floor_slot(11, 4);
+        let floor_17_guard = monster_for_floor_slot(17, 4);
+
+        assert!(floor_4_mini_boss.gold >= shop_cost(4));
+        assert!(floor_4_mini_boss.experience >= sage_cost(5));
+        assert!(floor_11_guard.gold >= shop_cost(11));
+        assert!(floor_11_guard.experience >= sage_cost(12));
+        assert!(floor_17_guard.gold >= shop_cost(17));
+        assert!(floor_17_guard.experience >= sage_cost(18) / 2);
     }
 
     #[test]
