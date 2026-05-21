@@ -103,6 +103,14 @@ struct ClickArea {
     action: ClickAction,
 }
 
+struct CardView {
+    center: Vec3,
+    index: usize,
+    card: CardId,
+    action: ClickAction,
+    highlighted: bool,
+}
+
 #[derive(Resource)]
 struct UiFont(Handle<Font>);
 
@@ -114,6 +122,7 @@ struct AppState {
     language: Language,
     menu_index: usize,
     settings_index: usize,
+    hovered_card: Option<usize>,
     menu_message: String,
 }
 
@@ -129,6 +138,7 @@ fn main() {
             language,
             menu_index: 0,
             settings_index: 0,
+            hovered_card: None,
             menu_message: String::new(),
         })
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -324,16 +334,17 @@ fn handle_mouse(
     mut app_exit: MessageWriter<AppExit>,
 ) {
     let Some(cursor_world) = cursor_world_position(&windows, &cameras) else {
+        if clear_hover_state(&mut state) {
+            state.dirty = true;
+        }
         return;
     };
-    let Some(action) = click_action_at(cursor_world, &click_areas) else {
-        return;
-    };
+    let action = click_action_at(cursor_world, &click_areas);
 
     let mut changed = update_hover_selection(action, &mut state);
     let mut save_after_change = false;
 
-    if mouse.just_pressed(MouseButton::Left) {
+    if let Some(action) = action.filter(|_| mouse.just_pressed(MouseButton::Left)) {
         let (action_changed, should_save) =
             activate_click_action(action, &mut state, &mut app_exit);
         changed |= action_changed;
@@ -383,26 +394,46 @@ fn click_action_at(
     hit.map(|(_, action)| action)
 }
 
-fn update_hover_selection(action: ClickAction, state: &mut AppState) -> bool {
+fn update_hover_selection(action: Option<ClickAction>, state: &mut AppState) -> bool {
+    let mut changed = false;
+    let hovered_card = match (state.screen, state.game.mode, action) {
+        (AppScreen::Playing, Mode::Combat, Some(ClickAction::PlayCard(index))) => Some(index),
+        _ => None,
+    };
+
+    if state.hovered_card != hovered_card {
+        state.hovered_card = hovered_card;
+        changed = true;
+    }
+
     match (state.screen, action) {
-        (AppScreen::StartMenu, ClickAction::StartMenu(item)) => {
+        (AppScreen::StartMenu, Some(ClickAction::StartMenu(item))) => {
             let index = item.index();
             if state.menu_index != index {
                 state.menu_index = index;
-                return true;
+                changed = true;
             }
         }
-        (AppScreen::Settings, ClickAction::Settings(item)) => {
+        (AppScreen::Settings, Some(ClickAction::Settings(item))) => {
             let index = item.index();
             if state.settings_index != index {
                 state.settings_index = index;
-                return true;
+                changed = true;
             }
         }
         _ => {}
     }
 
-    false
+    changed
+}
+
+fn clear_hover_state(state: &mut AppState) -> bool {
+    if state.hovered_card.is_none() {
+        return false;
+    }
+
+    state.hovered_card = None;
+    true
 }
 
 fn activate_click_action(
@@ -421,16 +452,8 @@ fn activate_click_action(
             if state.screen == AppScreen::Playing && state.game.mode == Mode::Explore =>
         {
             let language = state.language;
-            let player = state.game.player.pos;
-            let dx = x as i32 - player.x as i32;
-            let dy = y as i32 - player.y as i32;
-
-            if dx.abs() + dy.abs() == 1 {
-                state.game.try_move(dx, dy, language);
-                (true, true)
-            } else {
-                (false, false)
-            }
+            let changed = state.game.try_click_tile(game::Pos { x, y }, language);
+            (changed, changed)
         }
         ClickAction::PlayCard(index)
             if state.screen == AppScreen::Playing && state.game.mode == Mode::Combat =>
@@ -624,12 +647,22 @@ fn render_scene(
         commands.entity(entity).despawn();
     }
 
+    if !matches!(state.screen, AppScreen::Playing) || state.game.mode != Mode::Combat {
+        state.hovered_card = None;
+    }
+
     match state.screen {
         AppScreen::StartMenu => render_start_menu(&mut commands, &state, &font.0),
         AppScreen::Settings => render_settings(&mut commands, &state, &font.0),
         AppScreen::Playing => match state.game.mode {
             Mode::Explore => render_explore(&mut commands, &state.game, state.language, &font.0),
-            Mode::Combat => render_combat(&mut commands, &state.game, state.language, &font.0),
+            Mode::Combat => render_combat(
+                &mut commands,
+                &state.game,
+                state.language,
+                &font.0,
+                state.hovered_card,
+            ),
             Mode::Reward => render_reward(&mut commands, &state.game, state.language, &font.0),
             Mode::Victory => render_victory(&mut commands, &state.game, state.language, &font.0),
             Mode::GameOver => render_game_over(&mut commands, &state.game, state.language, &font.0),
@@ -949,7 +982,13 @@ fn render_explore(commands: &mut Commands, game: &Game, language: Language, font
     );
 }
 
-fn render_combat(commands: &mut Commands, game: &Game, language: Language, font: &Handle<Font>) {
+fn render_combat(
+    commands: &mut Commands,
+    game: &Game,
+    language: Language,
+    font: &Handle<Font>,
+    hovered_card: Option<usize>,
+) {
     let combat = game
         .combat
         .as_ref()
@@ -1056,12 +1095,15 @@ fn render_combat(commands: &mut Commands, game: &Game, language: Language, font:
         let x = -420.0 + index as f32 * 170.0;
         spawn_card(
             commands,
-            Vec3::new(x, -215.0, 1.0),
-            index + 1,
-            *card,
+            CardView {
+                center: Vec3::new(x, -215.0, 1.0),
+                index: index + 1,
+                card: *card,
+                action: ClickAction::PlayCard(index),
+                highlighted: hovered_card == Some(index),
+            },
             language,
             font,
-            ClickAction::PlayCard(index),
         );
     }
 
@@ -1133,12 +1175,15 @@ fn render_reward(commands: &mut Commands, game: &Game, language: Language, font:
         let x = -220.0 + index as f32 * 220.0;
         spawn_card(
             commands,
-            Vec3::new(x, 20.0, 1.0),
-            index + 1,
-            *card,
+            CardView {
+                center: Vec3::new(x, 20.0, 1.0),
+                index: index + 1,
+                card: *card,
+                action: ClickAction::ChooseReward(index),
+                highlighted: false,
+            },
             language,
             font,
-            ClickAction::ChooseReward(index),
         );
     }
 
@@ -1275,42 +1320,55 @@ fn render_game_over(commands: &mut Commands, game: &Game, language: Language, fo
     );
 }
 
-fn spawn_card(
-    commands: &mut Commands,
-    center: Vec3,
-    index: usize,
-    card: CardId,
-    language: Language,
-    font: &Handle<Font>,
-    action: ClickAction,
-) {
+fn spawn_card(commands: &mut Commands, view: CardView, language: Language, font: &Handle<Font>) {
+    if view.highlighted {
+        spawn_rect(
+            commands,
+            view.center,
+            Vec2::new(CARD_W + 12.0, CARD_H + 12.0),
+            Color::srgb(0.92, 0.72, 0.28),
+            0.6,
+        );
+    }
+
+    let card_color = if view.highlighted {
+        Color::srgb(0.24, 0.27, 0.33)
+    } else {
+        Color::srgb(0.18, 0.20, 0.24)
+    };
+    let header_color = if view.highlighted {
+        Color::srgb(0.40, 0.46, 0.58)
+    } else {
+        Color::srgb(0.30, 0.36, 0.46)
+    };
+
     spawn_click_rect(
         commands,
-        center,
+        view.center,
         Vec2::new(CARD_W, CARD_H),
-        Color::srgb(0.18, 0.20, 0.24),
+        card_color,
         1.0,
-        action,
+        view.action,
     );
     spawn_rect(
         commands,
-        center + Vec3::new(0.0, CARD_H * 0.5 - 16.0, 1.0),
+        view.center + Vec3::new(0.0, CARD_H * 0.5 - 16.0, 1.0),
         Vec2::new(CARD_W, 28.0),
-        Color::srgb(0.30, 0.36, 0.46),
+        header_color,
         2.0,
     );
 
     let card_text = format!(
         "{}. {} [{}]\n{}",
-        index,
-        localization::card_name(language, card),
-        card_cost(card),
-        wrap_card_text(localization::card_text(language, card))
+        view.index,
+        localization::card_name(language, view.card),
+        card_cost(view.card),
+        wrap_card_text(localization::card_text(language, view.card))
     );
     spawn_label(
         commands,
         &card_text,
-        center + Vec3::new(-CARD_W * 0.44, CARD_H * 0.31, 5.0),
+        view.center + Vec3::new(-CARD_W * 0.44, CARD_H * 0.31, 5.0),
         17.0,
         Color::srgb(0.95, 0.95, 0.9),
         Anchor::TOP_LEFT,

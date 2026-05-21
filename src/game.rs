@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use serde::{Deserialize, Serialize};
 
 use crate::localization::{self, Language};
@@ -305,15 +307,49 @@ impl Game {
             return;
         };
 
+        self.enter_tile(target, language);
+    }
+
+    pub fn try_click_tile(&mut self, target: Pos, language: Language) -> bool {
+        if self.mode != Mode::Explore || target == self.player.pos {
+            return false;
+        }
+
         match self.tile_at(target) {
-            Tile::Floor => self.player.pos = target,
+            Tile::Monster(index) => {
+                let Some(stand_pos) = self.reachable_monster_stand_pos(target) else {
+                    return false;
+                };
+
+                self.player.pos = stand_pos;
+                self.start_combat(index, target, language);
+                true
+            }
+            tile => {
+                if !self.is_click_destination(tile) || !self.can_reach_tile(target) {
+                    return false;
+                }
+
+                self.enter_tile(target, language)
+            }
+        }
+    }
+
+    fn enter_tile(&mut self, target: Pos, language: Language) -> bool {
+        match self.tile_at(target) {
+            Tile::Floor => {
+                self.player.pos = target;
+                true
+            }
             Tile::Wall => {
                 self.message = localization::message_solid_wall(language);
+                false
             }
             Tile::Stairs => {
                 self.player.pos = target;
                 self.mode = Mode::Victory;
                 self.message = localization::message_floor_clear(language);
+                true
             }
             Tile::YellowDoor => {
                 if self.player.yellow_keys > 0 {
@@ -321,8 +357,10 @@ impl Game {
                     self.set_tile(target, Tile::Floor);
                     self.player.pos = target;
                     self.message = localization::message_yellow_door_opened(language);
+                    true
                 } else {
                     self.message = localization::message_need_yellow_key(language);
+                    false
                 }
             }
             Tile::YellowKey => {
@@ -330,18 +368,21 @@ impl Game {
                 self.set_tile(target, Tile::Floor);
                 self.player.pos = target;
                 self.message = localization::message_yellow_key(language);
+                true
             }
             Tile::BlueKey => {
                 self.player.blue_keys += 1;
                 self.set_tile(target, Tile::Floor);
                 self.player.pos = target;
                 self.message = localization::message_blue_key(language);
+                true
             }
             Tile::SmallPotion => {
                 self.player.hp = (self.player.hp + 18).min(self.player.max_hp);
                 self.set_tile(target, Tile::Floor);
                 self.player.pos = target;
                 self.message = localization::message_potion(language);
+                true
             }
             Tile::Chest => {
                 self.player.gold += 12;
@@ -349,9 +390,75 @@ impl Game {
                 self.set_tile(target, Tile::Floor);
                 self.player.pos = target;
                 self.message = localization::message_chest(language);
+                true
             }
-            Tile::Monster(index) => self.start_combat(index, target, language),
+            Tile::Monster(index) => {
+                self.start_combat(index, target, language);
+                true
+            }
         }
+    }
+
+    fn is_click_destination(&self, tile: Tile) -> bool {
+        match tile {
+            Tile::Floor
+            | Tile::Stairs
+            | Tile::YellowKey
+            | Tile::BlueKey
+            | Tile::SmallPotion
+            | Tile::Chest => true,
+            Tile::YellowDoor => self.player.yellow_keys > 0,
+            Tile::Wall | Tile::Monster(_) => false,
+        }
+    }
+
+    fn can_reach_tile(&self, target: Pos) -> bool {
+        self.find_reachable_pos(
+            |pos| pos == target,
+            |pos| pos == target || self.is_clear_path_tile(self.tile_at(pos)),
+        )
+        .is_some()
+    }
+
+    fn reachable_monster_stand_pos(&self, monster_pos: Pos) -> Option<Pos> {
+        self.find_reachable_pos(
+            |pos| are_adjacent(pos, monster_pos),
+            |pos| self.is_clear_path_tile(self.tile_at(pos)),
+        )
+    }
+
+    fn find_reachable_pos(
+        &self,
+        is_goal: impl Fn(Pos) -> bool,
+        can_enter: impl Fn(Pos) -> bool,
+    ) -> Option<Pos> {
+        let mut visited = [false; MAP_WIDTH * MAP_HEIGHT];
+        let mut queue = VecDeque::new();
+
+        visited[self.player.pos.y * MAP_WIDTH + self.player.pos.x] = true;
+        queue.push_back(self.player.pos);
+
+        while let Some(pos) = queue.pop_front() {
+            if is_goal(pos) {
+                return Some(pos);
+            }
+
+            for next in neighbors(pos) {
+                let index = next.y * MAP_WIDTH + next.x;
+                if visited[index] || !can_enter(next) {
+                    continue;
+                }
+
+                visited[index] = true;
+                queue.push_back(next);
+            }
+        }
+
+        None
+    }
+
+    fn is_clear_path_tile(&self, tile: Tile) -> bool {
+        matches!(tile, Tile::Floor)
     }
 
     pub fn play_card(&mut self, hand_index: usize, language: Language) {
@@ -558,6 +665,16 @@ impl Game {
     }
 }
 
+fn neighbors(pos: Pos) -> impl Iterator<Item = Pos> {
+    [(0, -1), (0, 1), (-1, 0), (1, 0)]
+        .into_iter()
+        .filter_map(move |(dx, dy)| pos.offset(dx, dy))
+}
+
+fn are_adjacent(a: Pos, b: Pos) -> bool {
+    a.x.abs_diff(b.x) + a.y.abs_diff(b.y) == 1
+}
+
 fn apply_card(card: CardId, player: &mut Player, combat: &mut CombatState, language: Language) {
     match card {
         CardId::Strike => {
@@ -731,6 +848,42 @@ mod tests {
         assert_eq!(game.tile_at(monster_pos), Tile::Floor);
         assert_eq!(game.player.pos, monster_pos);
         assert!(game.monsters[0].defeated);
+    }
+
+    #[test]
+    fn click_reachable_item_moves_and_collects_it() {
+        let mut game = Game::new_with_language(Language::English);
+
+        let moved = game.try_click_tile(Pos { x: 3, y: 3 }, Language::English);
+
+        assert!(moved);
+        assert_eq!(game.player.pos, Pos { x: 3, y: 3 });
+        assert_eq!(game.player.blue_keys, 1);
+        assert_eq!(game.tile_at(Pos { x: 3, y: 3 }), Tile::Floor);
+    }
+
+    #[test]
+    fn click_reachable_monster_moves_next_to_it_and_starts_combat() {
+        let mut game = Game::new_with_language(Language::English);
+
+        let moved = game.try_click_tile(Pos { x: 4, y: 1 }, Language::English);
+
+        assert!(moved);
+        assert_eq!(game.player.pos, Pos { x: 3, y: 1 });
+        assert_eq!(game.mode, Mode::Combat);
+        assert_eq!(game.pending_monster_pos, Some(Pos { x: 4, y: 1 }));
+    }
+
+    #[test]
+    fn click_blocked_monster_does_not_move() {
+        let mut game = Game::new_with_language(Language::English);
+
+        let moved = game.try_click_tile(Pos { x: 7, y: 7 }, Language::English);
+
+        assert!(!moved);
+        assert_eq!(game.player.pos, Pos { x: 1, y: 1 });
+        assert_eq!(game.mode, Mode::Explore);
+        assert!(game.combat.is_none());
     }
 
     #[test]
