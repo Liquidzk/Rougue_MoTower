@@ -41,11 +41,13 @@ pub enum TextKey {
     ExploreTitle,
     StatsFloor,
     StatsHp,
+    StatsAttack,
+    StatsDefense,
     StatsGold,
+    StatsExperience,
     StatsYellowKeys,
     StatsBlueKeys,
     StatsDeck,
-    StatsDamageBonus,
     ControlsTitle,
     ControlsMove,
     ControlsPlayCard,
@@ -89,11 +91,13 @@ pub fn text(language: Language, key: TextKey) -> &'static str {
             TextKey::ExploreTitle => "魔塔牌塔",
             TextKey::StatsFloor => "楼层",
             TextKey::StatsHp => "生命",
+            TextKey::StatsAttack => "攻击",
+            TextKey::StatsDefense => "防御",
             TextKey::StatsGold => "金币",
+            TextKey::StatsExperience => "经验",
             TextKey::StatsYellowKeys => "黄钥匙",
             TextKey::StatsBlueKeys => "蓝钥匙",
             TextKey::StatsDeck => "牌组",
-            TextKey::StatsDamageBonus => "伤害加成",
             TextKey::ControlsTitle => "操作",
             TextKey::ControlsMove => "WASD / 方向键：移动",
             TextKey::ControlsPlayCard => "1-5：战斗中出牌",
@@ -136,11 +140,13 @@ pub fn text(language: Language, key: TextKey) -> &'static str {
             TextKey::ExploreTitle => "Rougue MoTower",
             TextKey::StatsFloor => "Floor",
             TextKey::StatsHp => "HP",
+            TextKey::StatsAttack => "Attack",
+            TextKey::StatsDefense => "Defense",
             TextKey::StatsGold => "Gold",
+            TextKey::StatsExperience => "EXP",
             TextKey::StatsYellowKeys => "Yellow Keys",
             TextKey::StatsBlueKeys => "Blue Keys",
             TextKey::StatsDeck => "Deck",
-            TextKey::StatsDamageBonus => "Damage Bonus",
             TextKey::ControlsTitle => "Controls",
             TextKey::ControlsMove => "WASD / Arrows: move",
             TextKey::ControlsPlayCard => "1-5: play card in battle",
@@ -198,20 +204,20 @@ pub fn card_name(language: Language, card: CardId) -> &'static str {
 pub fn card_text(language: Language, card: CardId) -> &'static str {
     match language {
         Language::Chinese => match card {
-            CardId::Strike => "造成 6 点伤害。",
-            CardId::Guard => "获得 6 点格挡。",
-            CardId::HeavySlash => "造成 13 点伤害。",
-            CardId::Spark => "造成 4 点伤害两次。",
-            CardId::ShieldBash => "造成 5 点伤害。\n获得 4 点格挡。",
-            CardId::FirstAid => "回复 5 点生命。",
+            CardId::Strike => "造成 5 + 攻击 点伤害。",
+            CardId::Guard => "获得 5 + 防御 点格挡。",
+            CardId::HeavySlash => "造成 10 + 2x攻击 点伤害。",
+            CardId::Spark => "造成 3 + 1/2攻击 点伤害两次。",
+            CardId::ShieldBash => "造成 4 + 攻击 点伤害。\n获得 3 + 防御 点格挡。",
+            CardId::FirstAid => "回复 5 + 1/2防御 点生命。",
         },
         Language::English => match card {
-            CardId::Strike => "Deal 6 damage.",
-            CardId::Guard => "Gain 6 block.",
-            CardId::HeavySlash => "Deal 13 damage.",
-            CardId::Spark => "Deal 4 damage twice.",
-            CardId::ShieldBash => "Deal 5 damage. Gain 4 block.",
-            CardId::FirstAid => "Heal 5 HP.",
+            CardId::Strike => "Deal 5 + Attack damage.",
+            CardId::Guard => "Gain 5 + Defense block.",
+            CardId::HeavySlash => "Deal 10 + 2x Attack damage.",
+            CardId::Spark => "Deal 3 + 1/2 Attack damage twice.",
+            CardId::ShieldBash => "Deal 4 + Attack damage. Gain 3 + Defense block.",
+            CardId::FirstAid => "Heal 5 + 1/2 Defense HP.",
         },
     }
 }
@@ -269,11 +275,11 @@ pub fn boss_bonus_text(language: Language, bonus: BossBonus) -> &'static str {
     match language {
         Language::Chinese => match bonus {
             BossBonus::MiniBossMaxHp => "小 Boss 奖励：最大生命 +6。",
-            BossBonus::BossAttackBonus => "Boss 奖励：卡牌伤害 +1。",
+            BossBonus::BossAttackBonus => "Boss 奖励：攻击 +1。",
         },
         Language::English => match bonus {
             BossBonus::MiniBossMaxHp => "Mini boss bonus: +6 max HP.",
-            BossBonus::BossAttackBonus => "Boss bonus: +1 card damage.",
+            BossBonus::BossAttackBonus => "Boss bonus: +1 Attack.",
         },
     }
 }
@@ -499,20 +505,27 @@ pub fn log_card(language: Language, card: CardId, damage: i32) -> String {
     match language {
         Language::Chinese => match card {
             CardId::Strike => format!("攻击造成 {damage} 点伤害。"),
-            CardId::Guard => "防御获得 6 点格挡。".to_string(),
+            CardId::Guard => format!("防御获得 {damage} 点格挡。"),
             CardId::HeavySlash => format!("重斩造成 {damage} 点伤害。"),
             CardId::Spark => format!("火花造成两次 {damage} 点伤害。"),
-            CardId::ShieldBash => format!("盾击造成 {damage} 点伤害，并获得 4 点格挡。"),
-            CardId::FirstAid => "急救回复 5 点生命。".to_string(),
+            CardId::ShieldBash => format!("盾击造成 {damage} 点伤害。"),
+            CardId::FirstAid => format!("急救回复 {damage} 点生命。"),
         },
         Language::English => match card {
             CardId::Strike => format!("Strike deals {damage}."),
-            CardId::Guard => "Guard adds 6 block.".to_string(),
+            CardId::Guard => format!("Guard adds {damage} block."),
             CardId::HeavySlash => format!("Heavy Slash deals {damage}."),
             CardId::Spark => format!("Spark deals {damage} twice."),
-            CardId::ShieldBash => format!("Shield Bash deals {damage} and adds 4 block."),
-            CardId::FirstAid => "First Aid heals 5 HP.".to_string(),
+            CardId::ShieldBash => format!("Shield Bash deals {damage}."),
+            CardId::FirstAid => format!("First Aid heals {damage} HP."),
         },
+    }
+}
+
+pub fn log_shield_bash(language: Language, damage: i32, block: i32) -> String {
+    match language {
+        Language::Chinese => format!("盾击造成 {damage} 点伤害，并获得 {block} 点格挡。"),
+        Language::English => format!("Shield Bash deals {damage} and adds {block} block."),
     }
 }
 
@@ -535,5 +548,12 @@ pub fn reward_gold(language: Language, gold: i32) -> String {
     match language {
         Language::Chinese => format!("获得 {gold} 金币。"),
         Language::English => format!("Gained {gold} gold."),
+    }
+}
+
+pub fn reward_experience(language: Language, experience: i32) -> String {
+    match language {
+        Language::Chinese => format!("获得 {experience} 经验。"),
+        Language::English => format!("Gained {experience} EXP."),
     }
 }

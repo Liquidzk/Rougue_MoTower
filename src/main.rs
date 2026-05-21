@@ -892,40 +892,48 @@ fn render_explore(commands: &mut Commands, game: &Game, language: Language, font
 
     let stats = match language {
         Language::Chinese => format!(
-            "{} {}\n{} {}/{}\n{} {}\n{} {}\n{} {}\n{} {} 张\n{} +{}",
+            "{} {}\n{} {}/{}\n{} {}\n{} {}\n{} {}\n{} {}\n{} {}\n{} {}\n{} {} 张",
             text(language, TextKey::StatsFloor),
             game.floor,
             text(language, TextKey::StatsHp),
             game.player.hp,
             game.player.max_hp,
+            text(language, TextKey::StatsAttack),
+            game.player.attack,
+            text(language, TextKey::StatsDefense),
+            game.player.defense,
             text(language, TextKey::StatsGold),
             game.player.gold,
+            text(language, TextKey::StatsExperience),
+            game.player.experience,
             text(language, TextKey::StatsYellowKeys),
             game.player.yellow_keys,
             text(language, TextKey::StatsBlueKeys),
             game.player.blue_keys,
             text(language, TextKey::StatsDeck),
-            game.deck.len(),
-            text(language, TextKey::StatsDamageBonus),
-            game.player.attack_bonus
+            game.deck.len()
         ),
         Language::English => format!(
-            "{} {}\n{} {}/{}\n{} {}\n{} {}\n{} {}\n{} {} cards\n{} +{}",
+            "{} {}\n{} {}/{}\n{} {}\n{} {}\n{} {}\n{} {}\n{} {}\n{} {}\n{} {} cards",
             text(language, TextKey::StatsFloor),
             game.floor,
             text(language, TextKey::StatsHp),
             game.player.hp,
             game.player.max_hp,
+            text(language, TextKey::StatsAttack),
+            game.player.attack,
+            text(language, TextKey::StatsDefense),
+            game.player.defense,
             text(language, TextKey::StatsGold),
             game.player.gold,
+            text(language, TextKey::StatsExperience),
+            game.player.experience,
             text(language, TextKey::StatsYellowKeys),
             game.player.yellow_keys,
             text(language, TextKey::StatsBlueKeys),
             game.player.blue_keys,
             text(language, TextKey::StatsDeck),
-            game.deck.len(),
-            text(language, TextKey::StatsDamageBonus),
-            game.player.attack_bonus
+            game.deck.len()
         ),
     };
 
@@ -1019,11 +1027,15 @@ fn render_combat(
         Vec2::new(330.0, 350.0),
     );
     let player_text = format!(
-        "{}\n{} {}/{}\n{} {}\n{} {}/{}\n{} {}\n{} {}  {} {}  {} {}",
+        "{}\n{} {}/{}\n{} {}  {} {}\n{} {}\n{} {}/{}\n{} {}\n{} {}\n{} {}  {} {}  {} {}",
         text(language, TextKey::PlayerLabel),
         text(language, TextKey::StatsHp),
         game.player.hp,
         game.player.max_hp,
+        text(language, TextKey::StatsAttack),
+        game.player.attack,
+        text(language, TextKey::StatsDefense),
+        game.player.defense,
         text(language, TextKey::BlockLabel),
         combat.player_block,
         text(language, TextKey::EnergyLabel),
@@ -1031,6 +1043,8 @@ fn render_combat(
         game::STARTING_ENERGY,
         text(language, TextKey::StatsGold),
         game.player.gold,
+        text(language, TextKey::StatsExperience),
+        game.player.experience,
         text(language, TextKey::StatsDeck),
         game.deck.len(),
         text(language, TextKey::DrawLabel),
@@ -1156,6 +1170,11 @@ fn render_reward(commands: &mut Commands, game: &Game, language: Language, font:
     );
 
     let mut summary = localization::reward_gold(language, reward.gold);
+    summary.push('\n');
+    summary.push_str(&localization::reward_experience(
+        language,
+        reward.experience,
+    ));
     if let Some(bonus) = reward.boss_bonus {
         summary.push('\n');
         summary.push_str(localization::boss_bonus_text(language, bonus));

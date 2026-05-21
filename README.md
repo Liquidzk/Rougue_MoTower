@@ -33,6 +33,8 @@ ROUGUE_MOTOWER_FONT=/path/to/chinese-font.ttf cargo run
 
 The stage 1 demo currently has 20 floors split into four difficulty bands. Floors include doors, keys, potions, chests, several monsters, mini bosses, floor bosses, card rewards, and a clear condition at the final stairs.
 
+Player combat stats currently include HP, Attack, Defense, Gold, EXP, keys, and deck size. Attack scales damage cards; Defense scales block/healing cards and reduces incoming enemy damage.
+
 The game auto-saves to `save/last_save.json` after in-game actions and when returning to the start menu.
 
 See [docs/TODO.md](docs/TODO.md) for the current node plan.

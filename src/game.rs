@@ -10,6 +10,8 @@ pub const STARTING_ENERGY: i32 = 3;
 pub const HAND_SIZE: usize = 5;
 pub const FINAL_FLOOR: i32 = 20;
 const MONSTER_SLOTS_PER_FLOOR: usize = 5;
+const STARTING_ATTACK: i32 = 4;
+const STARTING_DEFENSE: i32 = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Mode {
@@ -42,6 +44,14 @@ impl Pos {
     }
 }
 
+fn default_attack() -> i32 {
+    STARTING_ATTACK
+}
+
+fn default_defense() -> i32 {
+    STARTING_DEFENSE
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Tile {
     Floor,
@@ -61,7 +71,12 @@ pub struct Player {
     pub pos: Pos,
     pub hp: i32,
     pub max_hp: i32,
-    pub attack_bonus: i32,
+    #[serde(default = "default_attack")]
+    pub attack: i32,
+    #[serde(default = "default_defense")]
+    pub defense: i32,
+    #[serde(default)]
+    pub experience: i32,
     pub gold: i32,
     pub yellow_keys: i32,
     pub blue_keys: i32,
@@ -105,6 +120,8 @@ pub struct Monster {
     pub hp: i32,
     pub attack: i32,
     pub gold: i32,
+    #[serde(default)]
+    pub experience: i32,
     pub rank: MonsterRank,
     pub defeated: bool,
 }
@@ -171,6 +188,8 @@ pub struct CombatState {
     pub enemy_attack: i32,
     pub enemy_block: i32,
     pub enemy_gold: i32,
+    #[serde(default)]
+    pub enemy_experience: i32,
     pub turn: i32,
     pub energy: i32,
     pub player_block: i32,
@@ -191,6 +210,7 @@ impl CombatState {
             enemy_attack: monster.attack,
             enemy_block: 0,
             enemy_gold: monster.gold,
+            enemy_experience: monster.experience,
             turn: 1,
             energy: STARTING_ENERGY,
             player_block: 0,
@@ -259,6 +279,8 @@ impl CombatState {
 pub struct RewardState {
     pub monster_kind: MonsterId,
     pub gold: i32,
+    #[serde(default)]
+    pub experience: i32,
     pub offers: Vec<CardId>,
     pub boss_bonus: Option<BossBonus>,
 }
@@ -297,7 +319,9 @@ impl Game {
                 pos: Pos { x: 1, y: 1 },
                 hp: 72,
                 max_hp: 72,
-                attack_bonus: 0,
+                attack: STARTING_ATTACK,
+                defense: STARTING_DEFENSE,
+                experience: 0,
                 gold: 0,
                 yellow_keys: 0,
                 blue_keys: 0,
@@ -559,7 +583,9 @@ impl Game {
         let (damage, block) = combat.next_enemy_action();
         combat.enemy_block += block;
 
-        let blocked = damage.min(combat.player_block);
+        let card_blocked = damage.min(combat.player_block);
+        let defense_blocked = (damage - card_blocked).min(self.player.defense);
+        let blocked = card_blocked + defense_blocked;
         let taken = damage - blocked;
         self.player.hp -= taken;
         combat.log.push(localization::log_enemy_attack(
@@ -641,11 +667,13 @@ impl Game {
         let index = combat.monster_index;
         let monster_kind = combat.monster_kind;
         let gold = combat.enemy_gold;
+        let experience = combat.enemy_experience;
         let rank = combat.monster_rank;
 
         self.monsters[index].hp = 0;
         self.monsters[index].defeated = true;
         self.player.gold += gold;
+        self.player.experience += experience;
 
         if let Some(pos) = self.pending_monster_pos.take() {
             self.set_tile(pos, Tile::Floor);
@@ -660,7 +688,7 @@ impl Game {
                 Some(BossBonus::MiniBossMaxHp)
             }
             MonsterRank::Boss => {
-                self.player.attack_bonus += 1;
+                self.player.attack += 1;
                 Some(BossBonus::BossAttackBonus)
             }
         };
@@ -668,6 +696,7 @@ impl Game {
         self.reward = Some(RewardState {
             monster_kind,
             gold,
+            experience,
             offers: reward_cards(index, rank),
             boss_bonus,
         });
@@ -969,25 +998,28 @@ fn are_adjacent(a: Pos, b: Pos) -> bool {
 fn apply_card(card: CardId, player: &mut Player, combat: &mut CombatState, language: Language) {
     match card {
         CardId::Strike => {
-            let damage = 6 + player.attack_bonus;
+            let damage = 5 + player.attack;
             combat.deal_enemy_damage(damage);
             combat
                 .log
                 .push(localization::log_card(language, card, damage));
         }
         CardId::Guard => {
-            combat.player_block += 6;
-            combat.log.push(localization::log_card(language, card, 0));
+            let block = 5 + player.defense;
+            combat.player_block += block;
+            combat
+                .log
+                .push(localization::log_card(language, card, block));
         }
         CardId::HeavySlash => {
-            let damage = 13 + player.attack_bonus;
+            let damage = 10 + player.attack * 2;
             combat.deal_enemy_damage(damage);
             combat
                 .log
                 .push(localization::log_card(language, card, damage));
         }
         CardId::Spark => {
-            let damage = 4 + player.attack_bonus;
+            let damage = 3 + player.attack / 2;
             combat.deal_enemy_damage(damage);
             combat.deal_enemy_damage(damage);
             combat
@@ -995,16 +1027,20 @@ fn apply_card(card: CardId, player: &mut Player, combat: &mut CombatState, langu
                 .push(localization::log_card(language, card, damage));
         }
         CardId::ShieldBash => {
-            let damage = 5 + player.attack_bonus;
+            let damage = 4 + player.attack;
+            let block = 3 + player.defense;
             combat.deal_enemy_damage(damage);
-            combat.player_block += 4;
+            combat.player_block += block;
             combat
                 .log
-                .push(localization::log_card(language, card, damage));
+                .push(localization::log_shield_bash(language, damage, block));
         }
         CardId::FirstAid => {
-            player.hp = (player.hp + 5).min(player.max_hp);
-            combat.log.push(localization::log_card(language, card, 0));
+            let healing = 5 + player.defense / 2;
+            player.hp = (player.hp + healing).min(player.max_hp);
+            combat
+                .log
+                .push(localization::log_card(language, card, healing));
         }
     }
 }
@@ -1034,6 +1070,7 @@ fn monster_for_floor_slot(floor: i32, slot: usize) -> Monster {
     let base_hp = [18, 24, 34, 54, 82][slot];
     let base_attack = [4, 6, 8, 10, 13][slot];
     let base_gold = [5, 7, 10, 18, 30][slot];
+    let base_experience = [3, 4, 6, 10, 16][slot];
     let tier = ((floor - 1) / 5).max(0);
     let floor_step = floor - 1;
     let rank_hp = match rank {
@@ -1050,6 +1087,7 @@ fn monster_for_floor_slot(floor: i32, slot: usize) -> Monster {
     let max_hp = base_hp + floor_step * 9 + tier * 24 + rank_hp;
     let attack = base_attack + floor_step * 2 + tier * 3 + rank_attack;
     let gold = base_gold + floor * 2 + slot as i32 * 2 + tier * 8;
+    let experience = base_experience + floor + tier * 4 + slot as i32;
 
     Monster {
         kind,
@@ -1057,6 +1095,7 @@ fn monster_for_floor_slot(floor: i32, slot: usize) -> Monster {
         hp: max_hp,
         attack,
         gold,
+        experience,
         rank,
         defeated: false,
     }
@@ -1178,6 +1217,51 @@ mod tests {
         assert_eq!(game.tile_at(monster_pos), Tile::Floor);
         assert_eq!(game.player.pos, monster_pos);
         assert!(game.monsters[0].defeated);
+    }
+
+    #[test]
+    fn attack_attribute_scales_card_damage() {
+        let mut game = Game::new_with_language(Language::English);
+        game.start_combat(0, Pos { x: 4, y: 1 }, Language::English);
+        game.player.attack = 7;
+        let combat = game.combat.as_mut().unwrap();
+        combat.enemy_hp = 20;
+        combat.hand = vec![CardId::Strike];
+        combat.energy = STARTING_ENERGY;
+
+        game.play_card(0, Language::English);
+
+        assert_eq!(game.combat.as_ref().unwrap().enemy_hp, 8);
+    }
+
+    #[test]
+    fn defense_attribute_reduces_incoming_damage() {
+        let mut game = Game::new_with_language(Language::English);
+        game.start_combat(0, Pos { x: 4, y: 1 }, Language::English);
+        game.player.defense = 3;
+        game.player.hp = 30;
+        game.combat.as_mut().unwrap().player_block = 0;
+
+        game.end_turn(Language::English);
+
+        assert_eq!(game.player.hp, 29);
+    }
+
+    #[test]
+    fn combat_rewards_gold_and_experience() {
+        let mut game = Game::new_with_language(Language::English);
+        let expected_gold = game.monsters[0].gold;
+        let expected_experience = game.monsters[0].experience;
+        game.start_combat(0, Pos { x: 4, y: 1 }, Language::English);
+        let combat = game.combat.as_mut().unwrap();
+        combat.enemy_hp = 1;
+        combat.hand = vec![CardId::Strike];
+        combat.energy = STARTING_ENERGY;
+
+        game.play_card(0, Language::English);
+
+        assert_eq!(game.player.gold, expected_gold);
+        assert_eq!(game.player.experience, expected_experience);
     }
 
     #[test]
