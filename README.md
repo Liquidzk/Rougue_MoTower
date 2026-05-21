@@ -8,6 +8,18 @@ Bevy prototype for a hybrid Magic Tower map crawler and deck-builder card battle
 cargo run
 ```
 
+If the shell is not opened inside the desktop session, pass the active display explicitly:
+
+```bash
+DISPLAY=:10 cargo run
+```
+
+Chinese UI text needs a CJK font. The game tries common Windows, macOS, and Linux font paths automatically. To override it:
+
+```bash
+ROUGUE_MOTOWER_FONT=/path/to/chinese-font.ttf cargo run
+```
+
 ## Demo Controls
 
 - Start menu: click an option, or use arrow keys / `W` / `S` to choose and `Enter` / `Space` to confirm.

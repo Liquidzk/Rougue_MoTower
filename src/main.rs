@@ -2,7 +2,7 @@ mod game;
 mod localization;
 mod save;
 
-use std::fs;
+use std::{env, fs};
 
 use bevy::app::AppExit;
 use bevy::ecs::message::MessageWriter;
@@ -153,24 +153,43 @@ fn setup(mut commands: Commands, mut fonts: ResMut<Assets<Font>>) {
 }
 
 fn load_ui_font(fonts: &mut Assets<Font>) -> Handle<Font> {
+    if let Ok(path) = env::var("ROUGUE_MOTOWER_FONT") {
+        if let Some(font) = load_font_from_path(fonts, &path) {
+            return font;
+        }
+    }
+
     let candidates = [
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        "/usr/share/fonts/truetype/arphic/uming.ttc",
+        "/usr/share/fonts/truetype/arphic/ukai.ttc",
+        "/System/Library/Fonts/PingFang.ttc",
+        "/System/Library/Fonts/STHeiti Light.ttc",
+        "/System/Library/Fonts/STHeiti Medium.ttc",
         "C:\\Windows\\Fonts\\NotoSansSC-VF.ttf",
         "C:\\Windows\\Fonts\\msyh.ttc",
+        "C:\\Windows\\Fonts\\msyh.ttf",
         "C:\\Windows\\Fonts\\simhei.ttf",
         "C:\\Windows\\Fonts\\simsun.ttc",
     ];
 
     for path in candidates {
-        let Ok(bytes) = fs::read(path) else {
-            continue;
-        };
-        let Ok(font) = Font::try_from_bytes(bytes) else {
-            continue;
-        };
-        return fonts.add(font);
+        if let Some(font) = load_font_from_path(fonts, path) {
+            return font;
+        }
     }
 
     Handle::default()
+}
+
+fn load_font_from_path(fonts: &mut Assets<Font>, path: &str) -> Option<Handle<Font>> {
+    let bytes = fs::read(path).ok()?;
+    let font = Font::try_from_bytes(bytes).ok()?;
+    Some(fonts.add(font))
 }
 
 fn handle_keyboard(
