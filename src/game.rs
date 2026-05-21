@@ -1,9 +1,13 @@
+use serde::{Deserialize, Serialize};
+
+use crate::localization::{self, Language};
+
 pub const MAP_WIDTH: usize = 12;
 pub const MAP_HEIGHT: usize = 9;
 pub const STARTING_ENERGY: i32 = 3;
 pub const HAND_SIZE: usize = 5;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Mode {
     Explore,
     Combat,
@@ -12,7 +16,7 @@ pub enum Mode {
     GameOver,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pos {
     pub x: usize,
     pub y: usize,
@@ -34,7 +38,7 @@ impl Pos {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Tile {
     Floor,
     Wall,
@@ -47,7 +51,7 @@ pub enum Tile {
     Monster(usize),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Player {
     pub pos: Pos,
     pub hp: i32,
@@ -58,17 +62,25 @@ pub struct Player {
     pub blue_keys: i32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MonsterRank {
     Normal,
     MiniBoss,
     Boss,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MonsterId {
+    GreenSlime,
+    CaveBat,
+    BoneGuard,
+    IronCaptain,
+    FloorGuardian,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Monster {
-    pub name: &'static str,
-    pub marker: &'static str,
+    pub kind: MonsterId,
     pub max_hp: i32,
     pub hp: i32,
     pub attack: i32,
@@ -77,7 +89,7 @@ pub struct Monster {
     pub defeated: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CardId {
     Strike,
     Guard,
@@ -87,52 +99,37 @@ pub enum CardId {
     FirstAid,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct CardDef {
-    pub name: &'static str,
-    pub cost: i32,
-    pub text: &'static str,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BossBonus {
+    MiniBossMaxHp,
+    BossAttackBonus,
 }
 
-pub fn card_def(id: CardId) -> CardDef {
+pub fn card_cost(id: CardId) -> i32 {
     match id {
-        CardId::Strike => CardDef {
-            name: "Strike",
-            cost: 1,
-            text: "Deal 6 damage.",
-        },
-        CardId::Guard => CardDef {
-            name: "Guard",
-            cost: 1,
-            text: "Gain 6 block.",
-        },
-        CardId::HeavySlash => CardDef {
-            name: "Heavy Slash",
-            cost: 2,
-            text: "Deal 13 damage.",
-        },
-        CardId::Spark => CardDef {
-            name: "Spark",
-            cost: 1,
-            text: "Deal 4 damage twice.",
-        },
-        CardId::ShieldBash => CardDef {
-            name: "Shield Bash",
-            cost: 1,
-            text: "Deal 5 damage. Gain 4 block.",
-        },
-        CardId::FirstAid => CardDef {
-            name: "First Aid",
-            cost: 1,
-            text: "Heal 5 HP.",
-        },
+        CardId::Strike => 1,
+        CardId::Guard => 1,
+        CardId::HeavySlash => 2,
+        CardId::Spark => 1,
+        CardId::ShieldBash => 1,
+        CardId::FirstAid => 1,
     }
 }
 
-#[derive(Clone, Debug)]
+pub fn monster_marker(kind: MonsterId) -> &'static str {
+    match kind {
+        MonsterId::GreenSlime => "S",
+        MonsterId::CaveBat => "B",
+        MonsterId::BoneGuard => "G",
+        MonsterId::IronCaptain => "M",
+        MonsterId::FloorGuardian => "F",
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CombatState {
     pub monster_index: usize,
-    pub monster_name: &'static str,
+    pub monster_kind: MonsterId,
     pub monster_rank: MonsterRank,
     pub enemy_hp: i32,
     pub enemy_max_hp: i32,
@@ -149,10 +146,10 @@ pub struct CombatState {
 }
 
 impl CombatState {
-    fn new(monster_index: usize, monster: &Monster, deck: &[CardId]) -> Self {
+    fn new(monster_index: usize, monster: &Monster, deck: &[CardId], language: Language) -> Self {
         let mut combat = Self {
             monster_index,
-            monster_name: monster.name,
+            monster_kind: monster.kind,
             monster_rank: monster.rank,
             enemy_hp: monster.hp,
             enemy_max_hp: monster.max_hp,
@@ -165,20 +162,15 @@ impl CombatState {
             draw_pile: rotated_deck(deck, monster_index),
             discard_pile: Vec::new(),
             hand: Vec::new(),
-            log: vec![format!("{} appears.", monster.name)],
+            log: vec![localization::log_monster_appears(language, monster.kind)],
         };
-        combat.draw_cards(HAND_SIZE);
+        combat.draw_cards(HAND_SIZE, language);
         combat
     }
 
-    pub fn enemy_intent(&self) -> String {
+    pub fn enemy_intent(&self, language: Language) -> String {
         let (damage, block) = self.next_enemy_action();
-
-        match (damage, block) {
-            (damage, 0) => format!("Attack {damage}"),
-            (0, block) => format!("Block {block}"),
-            (damage, block) => format!("Attack {damage}, Block {block}"),
-        }
+        localization::enemy_intent(language, damage, block)
     }
 
     fn next_enemy_action(&self) -> (i32, i32) {
@@ -203,7 +195,7 @@ impl CombatState {
         }
     }
 
-    fn draw_cards(&mut self, count: usize) {
+    fn draw_cards(&mut self, count: usize, language: Language) {
         for _ in 0..count {
             if self.draw_pile.is_empty() {
                 if self.discard_pile.is_empty() {
@@ -211,7 +203,8 @@ impl CombatState {
                 }
 
                 self.draw_pile = self.discard_pile.drain(..).rev().collect();
-                self.log.push("Discard pile reshuffled.".to_string());
+                self.log
+                    .push(localization::log_discard_reshuffled(language));
             }
 
             if let Some(card) = self.draw_pile.pop() {
@@ -227,15 +220,15 @@ impl CombatState {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RewardState {
-    pub monster_name: &'static str,
+    pub monster_kind: MonsterId,
     pub gold: i32,
     pub offers: Vec<CardId>,
-    pub boss_bonus: Option<&'static str>,
+    pub boss_bonus: Option<BossBonus>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Game {
     pub mode: Mode,
     pub floor: i32,
@@ -257,6 +250,10 @@ impl Default for Game {
 
 impl Game {
     pub fn new() -> Self {
+        Self::new_with_language(Language::default())
+    }
+
+    pub fn new_with_language(language: Language) -> Self {
         let mut game = Self {
             mode: Mode::Explore,
             floor: 1,
@@ -275,15 +272,19 @@ impl Game {
             combat: None,
             reward: None,
             pending_monster_pos: None,
-            message: "Explore the tower. Move with WASD or arrows.".to_string(),
+            message: localization::initial_message(language),
         };
 
         game.load_demo_floor();
         game
     }
 
-    pub fn restart(&mut self) {
-        *self = Self::new();
+    pub fn restart(&mut self, language: Language) {
+        *self = Self::new_with_language(language);
+    }
+
+    pub fn set_message(&mut self, message: String) {
+        self.message = message;
     }
 
     pub fn tile_at(&self, pos: Pos) -> Tile {
@@ -294,66 +295,66 @@ impl Game {
         self.tiles[pos.y * MAP_WIDTH + pos.x] = tile;
     }
 
-    pub fn try_move(&mut self, dx: i32, dy: i32) {
+    pub fn try_move(&mut self, dx: i32, dy: i32, language: Language) {
         if self.mode != Mode::Explore {
             return;
         }
 
         let Some(target) = self.player.pos.offset(dx, dy) else {
-            self.message = "The tower wall blocks the way.".to_string();
+            self.message = localization::message_wall_bounds(language);
             return;
         };
 
         match self.tile_at(target) {
             Tile::Floor => self.player.pos = target,
             Tile::Wall => {
-                self.message = "A solid wall blocks the way.".to_string();
+                self.message = localization::message_solid_wall(language);
             }
             Tile::Stairs => {
                 self.player.pos = target;
                 self.mode = Mode::Victory;
-                self.message = "Floor 1 cleared. The next floor is a TODO node.".to_string();
+                self.message = localization::message_floor_clear(language);
             }
             Tile::YellowDoor => {
                 if self.player.yellow_keys > 0 {
                     self.player.yellow_keys -= 1;
                     self.set_tile(target, Tile::Floor);
                     self.player.pos = target;
-                    self.message = "Yellow door opened.".to_string();
+                    self.message = localization::message_yellow_door_opened(language);
                 } else {
-                    self.message = "Need a yellow key.".to_string();
+                    self.message = localization::message_need_yellow_key(language);
                 }
             }
             Tile::YellowKey => {
                 self.player.yellow_keys += 1;
                 self.set_tile(target, Tile::Floor);
                 self.player.pos = target;
-                self.message = "Picked up a yellow key.".to_string();
+                self.message = localization::message_yellow_key(language);
             }
             Tile::BlueKey => {
                 self.player.blue_keys += 1;
                 self.set_tile(target, Tile::Floor);
                 self.player.pos = target;
-                self.message = "Picked up a blue key. Later floors will spend it.".to_string();
+                self.message = localization::message_blue_key(language);
             }
             Tile::SmallPotion => {
                 self.player.hp = (self.player.hp + 18).min(self.player.max_hp);
                 self.set_tile(target, Tile::Floor);
                 self.player.pos = target;
-                self.message = "Potion restored 18 HP.".to_string();
+                self.message = localization::message_potion(language);
             }
             Tile::Chest => {
                 self.player.gold += 12;
                 self.deck.push(CardId::ShieldBash);
                 self.set_tile(target, Tile::Floor);
                 self.player.pos = target;
-                self.message = "Chest: +12 gold and Shield Bash added to deck.".to_string();
+                self.message = localization::message_chest(language);
             }
-            Tile::Monster(index) => self.start_combat(index, target),
+            Tile::Monster(index) => self.start_combat(index, target, language),
         }
     }
 
-    pub fn play_card(&mut self, hand_index: usize) {
+    pub fn play_card(&mut self, hand_index: usize, language: Language) {
         if self.mode != Mode::Combat {
             return;
         }
@@ -363,31 +364,31 @@ impl Game {
         };
 
         if hand_index >= combat.hand.len() {
-            combat.log.push("No card in that slot.".to_string());
+            combat.log.push(localization::message_no_card(language));
             return;
         }
 
         let card = combat.hand[hand_index];
-        let def = card_def(card);
+        let cost = card_cost(card);
 
-        if combat.energy < def.cost {
+        if combat.energy < cost {
             combat
                 .log
-                .push(format!("Not enough energy for {}.", def.name));
+                .push(localization::message_not_enough_energy(language, card));
             return;
         }
 
-        combat.energy -= def.cost;
+        combat.energy -= cost;
         combat.hand.remove(hand_index);
-        apply_card(card, &mut self.player, combat);
+        apply_card(card, &mut self.player, combat, language);
         combat.discard_pile.push(card);
 
         if combat.enemy_hp <= 0 {
-            self.win_combat();
+            self.win_combat(language);
         }
     }
 
-    pub fn end_turn(&mut self) {
+    pub fn end_turn(&mut self, language: Language) {
         if self.mode != Mode::Combat {
             return;
         }
@@ -404,31 +405,36 @@ impl Game {
         let blocked = damage.min(combat.player_block);
         let taken = damage - blocked;
         self.player.hp -= taken;
-        combat.log.push(format!(
-            "{} attacks for {damage}; blocked {blocked}, took {taken}.",
-            combat.monster_name
+        combat.log.push(localization::log_enemy_attack(
+            language,
+            combat.monster_kind,
+            damage,
+            blocked,
+            taken,
         ));
 
         if block > 0 {
-            combat
-                .log
-                .push(format!("{} gains {block} block.", combat.monster_name));
+            combat.log.push(localization::log_enemy_block(
+                language,
+                combat.monster_kind,
+                block,
+            ));
         }
 
         if self.player.hp <= 0 {
             self.player.hp = 0;
             self.mode = Mode::GameOver;
-            self.message = "You fell in the tower. Press R to restart.".to_string();
+            self.message = localization::message_fell(language);
             return;
         }
 
         combat.turn += 1;
         combat.energy = STARTING_ENERGY;
         combat.player_block = 0;
-        combat.draw_cards(HAND_SIZE);
+        combat.draw_cards(HAND_SIZE, language);
     }
 
-    pub fn choose_reward(&mut self, index: Option<usize>) {
+    pub fn choose_reward(&mut self, index: Option<usize>, language: Language) {
         if self.mode != Mode::Reward {
             return;
         }
@@ -440,42 +446,43 @@ impl Game {
         if let Some(index) = index {
             if let Some(card) = reward.offers.get(index).copied() {
                 self.deck.push(card);
-                self.message =
-                    format!("Added {} to deck. Continue exploring.", card_def(card).name);
+                self.message = localization::message_added_card(language, card);
             } else {
-                self.message = "Skipped reward. Continue exploring.".to_string();
+                self.message = localization::message_skipped_reward(language);
             }
         } else {
-            self.message = "Skipped reward. Continue exploring.".to_string();
+            self.message = localization::message_skipped_reward(language);
         }
 
         self.mode = Mode::Explore;
     }
 
-    fn start_combat(&mut self, monster_index: usize, pos: Pos) {
+    fn start_combat(&mut self, monster_index: usize, pos: Pos, language: Language) {
         if self.monsters[monster_index].defeated {
             self.set_tile(pos, Tile::Floor);
             self.player.pos = pos;
             return;
         }
 
+        let monster_kind = self.monsters[monster_index].kind;
         self.pending_monster_pos = Some(pos);
         self.combat = Some(CombatState::new(
             monster_index,
             &self.monsters[monster_index],
             &self.deck,
+            language,
         ));
         self.mode = Mode::Combat;
-        self.message = format!("Battle: {}", self.monsters[monster_index].name);
+        self.message = localization::message_battle(language, monster_kind);
     }
 
-    fn win_combat(&mut self) {
+    fn win_combat(&mut self, language: Language) {
         let Some(combat) = self.combat.take() else {
             return;
         };
 
         let index = combat.monster_index;
-        let monster_name = combat.monster_name;
+        let monster_kind = combat.monster_kind;
         let gold = combat.enemy_gold;
         let rank = combat.monster_rank;
 
@@ -493,22 +500,22 @@ impl Game {
             MonsterRank::MiniBoss => {
                 self.player.max_hp += 6;
                 self.player.hp = (self.player.hp + 6).min(self.player.max_hp);
-                Some("Mini boss bonus: +6 max HP.")
+                Some(BossBonus::MiniBossMaxHp)
             }
             MonsterRank::Boss => {
                 self.player.attack_bonus += 1;
-                Some("Boss bonus: +1 card damage.")
+                Some(BossBonus::BossAttackBonus)
             }
         };
 
         self.reward = Some(RewardState {
-            monster_name,
+            monster_kind,
             gold,
             offers: reward_cards(index, rank),
             boss_bonus,
         });
         self.mode = Mode::Reward;
-        self.message = format!("{monster_name} defeated. Choose a card reward.");
+        self.message = localization::message_defeated_choose_reward(language, monster_kind);
     }
 
     fn load_demo_floor(&mut self) {
@@ -551,27 +558,33 @@ impl Game {
     }
 }
 
-fn apply_card(card: CardId, player: &mut Player, combat: &mut CombatState) {
+fn apply_card(card: CardId, player: &mut Player, combat: &mut CombatState, language: Language) {
     match card {
         CardId::Strike => {
             let damage = 6 + player.attack_bonus;
             combat.deal_enemy_damage(damage);
-            combat.log.push(format!("Strike deals {damage}."));
+            combat
+                .log
+                .push(localization::log_card(language, card, damage));
         }
         CardId::Guard => {
             combat.player_block += 6;
-            combat.log.push("Guard adds 6 block.".to_string());
+            combat.log.push(localization::log_card(language, card, 0));
         }
         CardId::HeavySlash => {
             let damage = 13 + player.attack_bonus;
             combat.deal_enemy_damage(damage);
-            combat.log.push(format!("Heavy Slash deals {damage}."));
+            combat
+                .log
+                .push(localization::log_card(language, card, damage));
         }
         CardId::Spark => {
             let damage = 4 + player.attack_bonus;
             combat.deal_enemy_damage(damage);
             combat.deal_enemy_damage(damage);
-            combat.log.push(format!("Spark deals {damage} twice."));
+            combat
+                .log
+                .push(localization::log_card(language, card, damage));
         }
         CardId::ShieldBash => {
             let damage = 5 + player.attack_bonus;
@@ -579,11 +592,11 @@ fn apply_card(card: CardId, player: &mut Player, combat: &mut CombatState) {
             combat.player_block += 4;
             combat
                 .log
-                .push(format!("Shield Bash deals {damage} and adds 4 block."));
+                .push(localization::log_card(language, card, damage));
         }
         CardId::FirstAid => {
             player.hp = (player.hp + 5).min(player.max_hp);
-            combat.log.push("First Aid heals 5 HP.".to_string());
+            combat.log.push(localization::log_card(language, card, 0));
         }
     }
 }
@@ -591,8 +604,7 @@ fn apply_card(card: CardId, player: &mut Player, combat: &mut CombatState) {
 fn demo_monsters() -> Vec<Monster> {
     vec![
         Monster {
-            name: "Green Slime",
-            marker: "S",
+            kind: MonsterId::GreenSlime,
             max_hp: 18,
             hp: 18,
             attack: 4,
@@ -601,8 +613,7 @@ fn demo_monsters() -> Vec<Monster> {
             defeated: false,
         },
         Monster {
-            name: "Cave Bat",
-            marker: "B",
+            kind: MonsterId::CaveBat,
             max_hp: 24,
             hp: 24,
             attack: 6,
@@ -611,8 +622,7 @@ fn demo_monsters() -> Vec<Monster> {
             defeated: false,
         },
         Monster {
-            name: "Bone Guard",
-            marker: "G",
+            kind: MonsterId::BoneGuard,
             max_hp: 34,
             hp: 34,
             attack: 8,
@@ -621,8 +631,7 @@ fn demo_monsters() -> Vec<Monster> {
             defeated: false,
         },
         Monster {
-            name: "Iron Captain",
-            marker: "M",
+            kind: MonsterId::IronCaptain,
             max_hp: 54,
             hp: 54,
             attack: 10,
@@ -631,8 +640,7 @@ fn demo_monsters() -> Vec<Monster> {
             defeated: false,
         },
         Monster {
-            name: "Floor Guardian",
-            marker: "F",
+            kind: MonsterId::FloorGuardian,
             max_hp: 82,
             hp: 82,
             attack: 13,
@@ -688,14 +696,14 @@ mod tests {
 
     #[test]
     fn yellow_door_requires_key() {
-        let mut game = Game::new();
+        let mut game = Game::new_with_language(Language::English);
         game.player.pos = Pos { x: 3, y: 5 };
-        game.try_move(0, 1);
+        game.try_move(0, 1, Language::English);
         assert_eq!(game.player.pos, Pos { x: 3, y: 5 });
         assert_eq!(game.tile_at(Pos { x: 3, y: 6 }), Tile::YellowDoor);
 
         game.player.yellow_keys = 1;
-        game.try_move(0, 1);
+        game.try_move(0, 1, Language::English);
         assert_eq!(game.player.pos, Pos { x: 3, y: 6 });
         assert_eq!(game.tile_at(Pos { x: 3, y: 6 }), Tile::Floor);
         assert_eq!(game.player.yellow_keys, 0);
@@ -703,9 +711,9 @@ mod tests {
 
     #[test]
     fn strike_can_finish_combat_and_open_tile() {
-        let mut game = Game::new();
+        let mut game = Game::new_with_language(Language::English);
         let monster_pos = Pos { x: 4, y: 1 };
-        game.start_combat(0, monster_pos);
+        game.start_combat(0, monster_pos, Language::English);
         game.combat.as_mut().unwrap().enemy_hp = 6;
 
         let slot = game
@@ -717,11 +725,23 @@ mod tests {
             .position(|card| *card == CardId::Strike)
             .unwrap();
 
-        game.play_card(slot);
+        game.play_card(slot, Language::English);
 
         assert_eq!(game.mode, Mode::Reward);
         assert_eq!(game.tile_at(monster_pos), Tile::Floor);
         assert_eq!(game.player.pos, monster_pos);
         assert!(game.monsters[0].defeated);
+    }
+
+    #[test]
+    fn game_state_can_roundtrip_json() {
+        let game = Game::new_with_language(Language::English);
+        let data = serde_json::to_string(&game).unwrap();
+        let loaded: Game = serde_json::from_str(&data).unwrap();
+
+        assert_eq!(loaded.mode, game.mode);
+        assert_eq!(loaded.player.pos, game.player.pos);
+        assert_eq!(loaded.deck, game.deck);
+        assert_eq!(loaded.tiles, game.tiles);
     }
 }
