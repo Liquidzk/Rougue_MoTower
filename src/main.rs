@@ -356,7 +356,7 @@ fn click_action_at(
             && cursor_world.y >= center.y - half.y
             && cursor_world.y <= center.y + half.y;
 
-        if inside && hit.map_or(true, |(z, _)| center.z >= z) {
+        if inside && hit.is_none_or(|(z, _)| center.z >= z) {
             hit = Some((center.z, area.action));
         }
     }
