@@ -25,7 +25,7 @@ ROUGUE_MOTOWER_FONT=/path/to/chinese-font.ttf cargo run
 - Start menu: click an option, or use arrow keys / `W` / `S` to choose and `Enter` / `Space` to confirm.
 - Settings: click or press `Enter` / `Space` to switch between Chinese and English UI text.
 - `WASD` / arrow keys: move on the tower map.
-- Mouse: click adjacent map tiles to move, click cards to play or pick rewards, click on-screen buttons for menu/end turn/skip.
+- Mouse: click any reachable map tile to move there instantly; blocked paths do nothing. Click a reachable monster to enter combat, click cards to play or pick rewards, and click on-screen buttons for menu/end turn/skip.
 - `1`-`5`: play cards in battle.
 - `Space` / `Enter`: end combat turn or skip a reward.
 - `R`: restart after win/loss or at any time.

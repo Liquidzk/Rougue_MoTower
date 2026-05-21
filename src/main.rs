@@ -1519,3 +1519,38 @@ fn justify_for_anchor(anchor: Anchor) -> Justify {
         Justify::Left
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_state() -> AppState {
+        let language = Language::English;
+        AppState {
+            game: Game::new_with_language(language),
+            screen: AppScreen::Playing,
+            dirty: false,
+            language,
+            menu_index: 0,
+            settings_index: 0,
+            hovered_card: None,
+            menu_message: String::new(),
+        }
+    }
+
+    #[test]
+    fn combat_card_hover_tracks_play_card_action() {
+        let mut state = test_state();
+        state.game.mode = Mode::Combat;
+
+        let changed = update_hover_selection(Some(ClickAction::PlayCard(2)), &mut state);
+
+        assert!(changed);
+        assert_eq!(state.hovered_card, Some(2));
+
+        let changed = update_hover_selection(Some(ClickAction::Tile(1, 1)), &mut state);
+
+        assert!(changed);
+        assert_eq!(state.hovered_card, None);
+    }
+}

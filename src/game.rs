@@ -1358,6 +1358,34 @@ mod tests {
     }
 
     #[test]
+    fn click_reachable_floor_moves_directly() {
+        let mut game = Game::new_with_language(Language::English);
+
+        let moved = game.try_click_tile(Pos { x: 3, y: 1 }, Language::English);
+
+        assert!(moved);
+        assert_eq!(game.player.pos, Pos { x: 3, y: 1 });
+        assert_eq!(game.mode, Mode::Explore);
+    }
+
+    #[test]
+    fn click_blocked_floor_does_not_move() {
+        let mut game = Game::new_with_language(Language::English);
+        let start = Pos { x: 1, y: 1 };
+        let target = Pos { x: 3, y: 1 };
+        game.tiles.fill(Tile::Wall);
+        game.set_tile(start, Tile::Floor);
+        game.set_tile(target, Tile::Floor);
+        game.player.pos = start;
+
+        let moved = game.try_click_tile(target, Language::English);
+
+        assert!(!moved);
+        assert_eq!(game.player.pos, start);
+        assert_eq!(game.mode, Mode::Explore);
+    }
+
+    #[test]
     fn click_reachable_item_moves_and_collects_it() {
         let mut game = Game::new_with_language(Language::English);
 
