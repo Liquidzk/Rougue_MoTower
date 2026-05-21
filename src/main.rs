@@ -11,8 +11,8 @@ use bevy::sprite::Anchor;
 use bevy::text::Font;
 use bevy::window::{PrimaryWindow, WindowResolution};
 use game::{
-    card_cost, monster_marker, CardId, Game, Mode, MonsterRank, Tile, HAND_SIZE, MAP_HEIGHT,
-    MAP_WIDTH,
+    card_cost, card_rarity, monster_marker, CardId, CardRarity, Game, Mode, MonsterRank, Tile,
+    HAND_SIZE, MAP_HEIGHT, MAP_WIDTH,
 };
 use localization::{language_name, text, Language, TextKey};
 
@@ -1350,15 +1350,12 @@ fn spawn_card(commands: &mut Commands, view: CardView, language: Language, font:
         );
     }
 
-    let card_color = if view.highlighted {
-        Color::srgb(0.24, 0.27, 0.33)
-    } else {
-        Color::srgb(0.18, 0.20, 0.24)
-    };
+    let rarity = card_rarity(view.card);
+    let card_color = card_base_color(rarity, view.highlighted);
     let header_color = if view.highlighted {
         Color::srgb(0.40, 0.46, 0.58)
     } else {
-        Color::srgb(0.30, 0.36, 0.46)
+        card_header_color(rarity)
     };
 
     spawn_click_rect(
@@ -1397,6 +1394,31 @@ fn spawn_card(commands: &mut Commands, view: CardView, language: Language, font:
 
 fn wrap_card_text(text: &str) -> String {
     text.replace(". ", ".\n")
+}
+
+fn card_base_color(rarity: CardRarity, highlighted: bool) -> Color {
+    match (rarity, highlighted) {
+        (CardRarity::Common, false) => Color::srgb(0.18, 0.20, 0.24),
+        (CardRarity::Advanced, false) => Color::srgb(0.14, 0.21, 0.34),
+        (CardRarity::Rare, false) => Color::srgb(0.25, 0.16, 0.35),
+        (CardRarity::Legendary, false) => Color::srgb(0.36, 0.25, 0.08),
+        (CardRarity::Special, false) => Color::srgb(0.34, 0.10, 0.12),
+        (CardRarity::Common, true) => Color::srgb(0.24, 0.27, 0.33),
+        (CardRarity::Advanced, true) => Color::srgb(0.18, 0.29, 0.46),
+        (CardRarity::Rare, true) => Color::srgb(0.34, 0.22, 0.48),
+        (CardRarity::Legendary, true) => Color::srgb(0.48, 0.34, 0.12),
+        (CardRarity::Special, true) => Color::srgb(0.46, 0.14, 0.16),
+    }
+}
+
+fn card_header_color(rarity: CardRarity) -> Color {
+    match rarity {
+        CardRarity::Common => Color::srgb(0.30, 0.36, 0.46),
+        CardRarity::Advanced => Color::srgb(0.18, 0.34, 0.58),
+        CardRarity::Rare => Color::srgb(0.45, 0.25, 0.62),
+        CardRarity::Legendary => Color::srgb(0.68, 0.48, 0.16),
+        CardRarity::Special => Color::srgb(0.62, 0.16, 0.18),
+    }
 }
 
 fn tile_center(x: usize, y: usize) -> Vec3 {

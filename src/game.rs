@@ -136,6 +136,22 @@ pub enum CardId {
     Spark,
     ShieldBash,
     FirstAid,
+    Cleave,
+    IronWall,
+    Breaker,
+    Execute,
+    BattleTrance,
+    KingsSlash,
+    BloodPact,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CardRarity {
+    Common,
+    Advanced,
+    Rare,
+    Legendary,
+    Special,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -159,6 +175,27 @@ pub fn card_cost(id: CardId) -> i32 {
         CardId::Spark => 1,
         CardId::ShieldBash => 1,
         CardId::FirstAid => 1,
+        CardId::Cleave => 2,
+        CardId::IronWall => 2,
+        CardId::Breaker => 1,
+        CardId::Execute => 2,
+        CardId::BattleTrance => 0,
+        CardId::KingsSlash => 3,
+        CardId::BloodPact => 0,
+    }
+}
+
+pub fn card_rarity(id: CardId) -> CardRarity {
+    match id {
+        CardId::Strike | CardId::Guard | CardId::ShieldBash | CardId::FirstAid => {
+            CardRarity::Common
+        }
+        CardId::HeavySlash | CardId::Spark | CardId::Cleave | CardId::IronWall => {
+            CardRarity::Advanced
+        }
+        CardId::Breaker | CardId::Execute | CardId::BattleTrance => CardRarity::Rare,
+        CardId::KingsSlash => CardRarity::Legendary,
+        CardId::BloodPact => CardRarity::Special,
     }
 }
 
@@ -1055,9 +1092,9 @@ fn shop_cost(floor: i32) -> i32 {
 
 fn shop_card(floor: i32, deck_len: usize) -> CardId {
     let offers = match floor {
-        1..=5 => [CardId::ShieldBash, CardId::Spark, CardId::HeavySlash],
-        6..=12 => [CardId::HeavySlash, CardId::Spark, CardId::FirstAid],
-        _ => [CardId::HeavySlash, CardId::ShieldBash, CardId::FirstAid],
+        1..=5 => [CardId::ShieldBash, CardId::Cleave, CardId::IronWall],
+        6..=12 => [CardId::Breaker, CardId::Execute, CardId::BattleTrance],
+        _ => [CardId::KingsSlash, CardId::BloodPact, CardId::Execute],
     };
     offers[deck_len % offers.len()]
 }
@@ -1134,6 +1171,57 @@ fn apply_card(card: CardId, player: &mut Player, combat: &mut CombatState, langu
             combat
                 .log
                 .push(localization::log_card(language, card, healing));
+        }
+        CardId::Cleave => {
+            let damage = 8 + player.attack;
+            combat.deal_enemy_damage(damage);
+            combat
+                .log
+                .push(localization::log_card(language, card, damage));
+        }
+        CardId::IronWall => {
+            let block = 10 + player.defense * 2;
+            combat.player_block += block;
+            combat
+                .log
+                .push(localization::log_card(language, card, block));
+        }
+        CardId::Breaker => {
+            let damage = 6 + player.attack;
+            combat.enemy_block = 0;
+            combat.deal_enemy_damage(damage);
+            combat
+                .log
+                .push(localization::log_card(language, card, damage));
+        }
+        CardId::Execute => {
+            let mut damage = 12 + player.attack * 2;
+            if combat.enemy_hp * 2 <= combat.enemy_max_hp {
+                damage *= 2;
+            }
+            combat.deal_enemy_damage(damage);
+            combat
+                .log
+                .push(localization::log_card(language, card, damage));
+        }
+        CardId::BattleTrance => {
+            combat.energy += 1;
+            combat.draw_cards(2, language);
+            combat.log.push(localization::log_card(language, card, 0));
+        }
+        CardId::KingsSlash => {
+            let damage = 22 + player.attack * 3;
+            combat.deal_enemy_damage(damage);
+            combat.player_block += player.defense;
+            combat
+                .log
+                .push(localization::log_card(language, card, damage));
+        }
+        CardId::BloodPact => {
+            player.hp = (player.hp - 6).max(1);
+            combat.energy += 1;
+            combat.draw_cards(2, language);
+            combat.log.push(localization::log_card(language, card, 0));
         }
     }
 }
@@ -1260,12 +1348,12 @@ fn rotated_deck(deck: &[CardId], seed: usize) -> Vec<CardId> {
 fn reward_cards(monster_index: usize, rank: MonsterRank) -> Vec<CardId> {
     match rank {
         MonsterRank::Normal => match monster_index % 3 {
-            0 => vec![CardId::Strike, CardId::Guard, CardId::ShieldBash],
-            1 => vec![CardId::Spark, CardId::Guard, CardId::FirstAid],
-            _ => vec![CardId::HeavySlash, CardId::ShieldBash, CardId::Strike],
+            0 => vec![CardId::Strike, CardId::Guard, CardId::Cleave],
+            1 => vec![CardId::Spark, CardId::IronWall, CardId::FirstAid],
+            _ => vec![CardId::HeavySlash, CardId::ShieldBash, CardId::Breaker],
         },
-        MonsterRank::MiniBoss => vec![CardId::HeavySlash, CardId::Spark, CardId::FirstAid],
-        MonsterRank::Boss => vec![CardId::HeavySlash, CardId::ShieldBash, CardId::Spark],
+        MonsterRank::MiniBoss => vec![CardId::Execute, CardId::BattleTrance, CardId::Breaker],
+        MonsterRank::Boss => vec![CardId::KingsSlash, CardId::BloodPact, CardId::Execute],
     }
 }
 
@@ -1355,6 +1443,111 @@ mod tests {
 
         assert_eq!(game.player.gold, expected_gold);
         assert_eq!(game.player.experience, expected_experience);
+    }
+
+    #[test]
+    fn card_rarities_cover_stage_one_card_pool() {
+        assert_eq!(card_rarity(CardId::Strike), CardRarity::Common);
+        assert_eq!(card_rarity(CardId::Guard), CardRarity::Common);
+        assert_eq!(card_rarity(CardId::HeavySlash), CardRarity::Advanced);
+        assert_eq!(card_rarity(CardId::Cleave), CardRarity::Advanced);
+        assert_eq!(card_rarity(CardId::Breaker), CardRarity::Rare);
+        assert_eq!(card_rarity(CardId::BattleTrance), CardRarity::Rare);
+        assert_eq!(card_rarity(CardId::KingsSlash), CardRarity::Legendary);
+        assert_eq!(card_rarity(CardId::BloodPact), CardRarity::Special);
+    }
+
+    #[test]
+    fn reward_and_shop_pools_use_rarity_tiers() {
+        let normal_reward = reward_cards(0, MonsterRank::Normal);
+        let mini_boss_reward = reward_cards(4, MonsterRank::MiniBoss);
+        let boss_reward = reward_cards(9, MonsterRank::Boss);
+
+        assert!(normal_reward.contains(&CardId::Cleave));
+        assert!(mini_boss_reward
+            .iter()
+            .all(|card| card_rarity(*card) == CardRarity::Rare));
+        assert!(boss_reward.contains(&CardId::KingsSlash));
+        assert!(boss_reward.contains(&CardId::BloodPact));
+
+        assert_eq!(shop_card(4, 1), CardId::Cleave);
+        assert_eq!(card_rarity(shop_card(11, 0)), CardRarity::Rare);
+        assert_eq!(card_rarity(shop_card(17, 0)), CardRarity::Legendary);
+    }
+
+    #[test]
+    fn breaker_clears_enemy_block_before_damage() {
+        let mut game = Game::new_with_language(Language::English);
+        game.start_combat(0, Pos { x: 4, y: 1 }, Language::English);
+        game.player.attack = 4;
+        let combat = game.combat.as_mut().unwrap();
+        combat.enemy_hp = 40;
+        combat.enemy_block = 5;
+        combat.hand = vec![CardId::Breaker];
+        combat.energy = STARTING_ENERGY;
+
+        game.play_card(0, Language::English);
+
+        let combat = game.combat.as_ref().unwrap();
+        assert_eq!(combat.enemy_block, 0);
+        assert_eq!(combat.enemy_hp, 30);
+    }
+
+    #[test]
+    fn execute_doubles_damage_at_half_health() {
+        let mut game = Game::new_with_language(Language::English);
+        game.start_combat(0, Pos { x: 4, y: 1 }, Language::English);
+        game.player.attack = 4;
+        let combat = game.combat.as_mut().unwrap();
+        combat.enemy_max_hp = 100;
+        combat.enemy_hp = 50;
+        combat.hand = vec![CardId::Execute];
+        combat.energy = STARTING_ENERGY;
+
+        game.play_card(0, Language::English);
+
+        assert_eq!(game.combat.as_ref().unwrap().enemy_hp, 10);
+    }
+
+    #[test]
+    fn battle_trance_draws_two_and_gains_energy() {
+        let mut game = Game::new_with_language(Language::English);
+        game.start_combat(0, Pos { x: 4, y: 1 }, Language::English);
+        let combat = game.combat.as_mut().unwrap();
+        combat.enemy_hp = 100;
+        combat.hand = vec![CardId::BattleTrance];
+        combat.draw_pile = vec![CardId::Strike, CardId::Guard];
+        combat.discard_pile.clear();
+        combat.energy = 1;
+
+        game.play_card(0, Language::English);
+
+        let combat = game.combat.as_ref().unwrap();
+        assert_eq!(combat.energy, 2);
+        assert_eq!(combat.hand.len(), 2);
+        assert!(combat.hand.contains(&CardId::Strike));
+        assert!(combat.hand.contains(&CardId::Guard));
+        assert_eq!(combat.discard_pile, vec![CardId::BattleTrance]);
+    }
+
+    #[test]
+    fn blood_pact_cannot_reduce_hp_below_one() {
+        let mut game = Game::new_with_language(Language::English);
+        game.start_combat(0, Pos { x: 4, y: 1 }, Language::English);
+        game.player.hp = 4;
+        let combat = game.combat.as_mut().unwrap();
+        combat.enemy_hp = 100;
+        combat.hand = vec![CardId::BloodPact];
+        combat.draw_pile = vec![CardId::Strike];
+        combat.discard_pile.clear();
+        combat.energy = 0;
+
+        game.play_card(0, Language::English);
+
+        let combat = game.combat.as_ref().unwrap();
+        assert_eq!(game.player.hp, 1);
+        assert_eq!(combat.energy, 1);
+        assert_eq!(combat.hand, vec![CardId::Strike]);
     }
 
     #[test]
